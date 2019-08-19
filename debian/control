@@ -1,3 +1,8 @@
+Source: truenas-installer
+Priority: optional
+Maintainer: Kris Moore <kris@ixsystems.com>
+Standards-Version: 4.0.0
+
 Package: truenas-installer
 Package-Type: udeb
 Architecture: all
