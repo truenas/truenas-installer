@@ -1,0 +1,17 @@
+#!/bin/sh
+#
+# We don't need to prompt for boot-loader disk, splat grub down
+# to the installation device
+
+. /usr/share/debconf/confmodule
+db_get partman-auto/select_disk
+if [ -z "${RET}" ]; then
+	exit 1
+fi
+
+GRUBDEV=$(cat ${RET}/device)
+logger -t partman "Installing boot-loader to '${GRUBDEV}'"
+db_set grub-installer/bootdev ${GRUBDEV}
+db_fset grub-installer/bootdev seen true
+
+exit 0
