@@ -20,6 +20,7 @@ binary-indep: binary-stamp
 binary-stamp:
 	mkdir -p debian/truenas-installer/lib/partman
 	mkdir -p debian/truenas-installer/usr/lib
+	mkdir -p debian/truenas-installer/usr/share/doc/truenas-installer
 	cp -a lib/partman/* debian/truenas-installer/lib/partman/
 	cp -a usr/lib/* debian/truenas-installer/usr/lib/
 	cp debian/copyright debian/truenas-installer/usr/share/doc/truenas-installer/copyright
