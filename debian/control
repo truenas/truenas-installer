@@ -1,4 +1,5 @@
 Source: truenas-installer
+Section: admin
 Priority: optional
 Maintainer: Kris Moore <kris@ixsystems.com>
 Build-Depends: debhelper (>=10), debhelper-compat (= 12)
