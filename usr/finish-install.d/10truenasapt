@@ -37,7 +37,7 @@ if [ ! -d "/target/etc/apt" ] ; then
 	mkdir -p /target/etc/apt
 fi
 echo "# TrueNAS APT Repository" > /target/etc/apt/sources.list
-echo "deb https://apt.tn.ixsystems.com/truenas/unstable truenas main" \
+echo "deb http://apt.tn.ixsystems.com/truenas/unstable truenas main" \
 	>> /target/etc/apt/sources.list
 
 exit 0
