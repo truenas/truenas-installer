@@ -18,10 +18,8 @@ binary-arch: binary-stamp
 binary-indep: binary-stamp
 
 binary-stamp:
-	mkdir -p debian/truenas-installer/lib
-	mkdir -p debian/truenas-installer/usr/lib
-	cp -a lib/* debian/truenas-installer/lib/
-	cp -a usr/lib/* debian/truenas-installer/usr/lib/
+	mkdir -p debian/truenas-installer/usr/sbin
+	cp -a usr/sbin/* debian/truenas-installer/usr/sbin/
 	dh_lintian
 	dh_gencontrol
 	dh_builddeb

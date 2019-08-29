@@ -1,4 +1,0 @@
-#!/bin/sh
-
-echo "FIXME: Starting shell prompt for partitioning"
-/bin/sh
