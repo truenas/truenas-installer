@@ -18,7 +18,9 @@ binary-arch: binary-stamp
 binary-indep: binary-stamp
 
 binary-stamp:
+	mkdir -p debian/truenas-installer/sbin
 	mkdir -p debian/truenas-installer/usr/sbin
+	cp -a sbin/* debian/truenas-installer/sbin/
 	cp -a usr/sbin/* debian/truenas-installer/usr/sbin/
 	dh_lintian
 	dh_gencontrol
