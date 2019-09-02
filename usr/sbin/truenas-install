@@ -91,16 +91,6 @@ is_swap_safe()
     esac
 }
 
-do_sata_dom()
-{
-
-    if ! is_truenas ; then
-	return 1
-    fi
-    install_sata_dom_prompt
-    return $?
-}
-
 # The old pre-install checks did several things
 # 1:  Don't allow going from FreeNAS to TrueNAS or vice versa
 # 2:  Don't allow downgrading.  (Not sure we can do that now.)
@@ -124,12 +114,6 @@ wait_keypress()
 {
     local _tmp
     read -p "Press ENTER to continue." _tmp
-}
-
-sort_disklist()
-{
-
-    sed 's/\([^0-9]*\)/\1 /' | sort +0 -1 +1n | tr -d ' '
 }
 
 # return 0 if no raid devices, or !0 if there are some.
@@ -157,7 +141,7 @@ get_physical_disks_list()
 	VAL="${VAL} ${_disk}"
     done
 
-    VAL=`echo $VAL | tr ' ' '\n'| grep -v '^cd' | sort_disklist`
+    VAL=`echo $VAL | tr ' ' '\n'| grep -v '^cd'`
     export VAL
 }
 
@@ -169,12 +153,12 @@ get_media_description()
 
     _media=$1
     if [ -n "${_media}" ]; then
-	_description=`sgdisk -p /dev/${_media} 2>/dev/null \
+	_description=`sgdisk -p /dev/${_media} | grep "Model:" \
 	    | cut -d ' ' -f 2-`
 	if [ -z "${_description}" ]; then
 	    _description="Unknown Device"
 	fi
-	_cap=`sgdisk -p /dev/${_media} | grep "Disk: /dev/${_media}" | cut -d ' ' -f 5`
+	_cap=`sgdisk -p /dev/${_media} | grep "Disk /dev/${_media}" | cut -d ' ' -f 5-6`
 	echo "${_description} -- ${_cap}"
     fi
 }
@@ -717,7 +701,6 @@ menu_install()
     local _desc
     local _list
     local _msg
-    local _satadom
     local _i
     local _do_upgrade=""
     local _menuheight
@@ -771,43 +754,37 @@ menu_install()
 	pre_install_check || return 0
     fi
     
-    if do_sata_dom
-    then
-	_satadom="YES"
-    else
-	_satadom=""
-	if ${INTERACTIVE}; then
-	    get_physical_disks_list
-	    _disklist="${VAL}"
+    if ${INTERACTIVE}; then
+	get_physical_disks_list
+	_disklist="${VAL}"
 
-	    _list=""
-	    _items=0
-	    for _disk in ${_disklist}; do
-		_desc=$(get_media_description "${_disk}" | sed "s/'/'\\\''/g")
-		_list="${_list} ${_disk} '${_desc}' off"
-		_items=$((${_items} + 1))
-	    done
+	_list=""
+	_items=0
+	for _disk in ${_disklist}; do
+	    _desc=$(get_media_description "${_disk}" | sed "s/'/'\\\''/g")
+	    _list="${_list} ${_disk} '${_desc}' off"
+	    _items=$((${_items} + 1))
+	done
 	    
-	    _tmpfile="/tmp/answer"
-	    if [ ${_items} -ge 10 ]; then
-		_items=10
-		_menuheight=20
-	    else
-		_menuheight=9
-		_menuheight=$((${_menuheight} + ${_items}))
-	    fi
-	    if [ "${_items}" -eq 0 ]; then
-		# Inform the user
-		eval "dialog --title 'Choose destination media' --msgbox 'No drives available' 5 60" 2>${_tmpfile}
-		return 0
-	    fi
-
-	    eval "dialog --title 'Choose destination media' \
-	      --checklist 'Select one or more drives where $AVATAR_PROJECT should be installed (use arrow keys to navigate to the drive(s) for installation; select a drive with the spacebar).' \
-	      ${_menuheight} 60 ${_items} ${_list}" 2>${_tmpfile}
-	    [ $? -eq 0 ] || exit 1
+	_tmpfile="/tmp/answer"
+	if [ ${_items} -ge 10 ]; then
+	    _items=10
+	    _menuheight=20
+	else
+	    _menuheight=9
+	    _menuheight=$((${_menuheight} + ${_items}))
 	fi
-    fi # ! do_sata_dom
+	if [ "${_items}" -eq 0 ]; then
+	    # Inform the user
+	    eval "dialog --title 'Choose destination media' --msgbox 'No drives available' 5 60" 2>${_tmpfile}
+	    return 0
+	fi
+
+	eval "dialog --title 'Choose destination media' \
+		--checklist 'Select one or more drives where $AVATAR_PROJECT should be installed (use arrow keys to navigate to the drive(s) for installation; select a drive with the spacebar).' \
+		${_menuheight} 60 ${_items} ${_list}" 2>${_tmpfile}
+	[ $? -eq 0 ] || exit 1
+    fi
 
     if [ -f "${_tmpfile}" ]; then
 	_disks=$(eval "echo `cat "${_tmpfile}"`")
@@ -864,16 +841,6 @@ menu_install()
 	    fi
 	fi
 	break
-    elif [ "${_satadom}" = "YES" -a -c /dev/ufs/TrueNASs4 ]; then
-	# Special hack for USB -> DOM upgrades
-	_disk_old=`glabel status | awk '/ ufs\/TrueNASs4 / { print $3 }' | sed -e 's,s4$,,g'`
-	if disk_is_freenas ${_disk_old} ; then
-	    if ask_upgrade ${_disk_old} ; then
-		_do_upgrade=2
-		_action="upgrade"
-		break
-	    fi
-	fi
     fi
     done
     # If we haven't set _do_upgrade by now, we're not
@@ -882,12 +849,7 @@ menu_install()
 	_do_upgrade=0
     fi
 
-    if [ "${_satadom}" = "YES" -a -n "$(echo ${_disks}|grep "raid/")" ]; then
-	_realdisks=$(cat ${REALDISKS})
-    else
-	_realdisks=$_disks
-    fi
-
+    _realdisks=$_disks
 
     ${INTERACTIVE} && new_install_verify "$_action" "$_upgrade_type" ${_realdisks}
 
@@ -1179,10 +1141,6 @@ main()
         esac
     done
 }
-
-if is_truenas ; then
-    . "$(dirname "$0")/install_sata_dom.sh"
-fi
 
 # Parse a config file.
 # We don't do much in the way of error checking.
