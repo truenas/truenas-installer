@@ -26,71 +26,6 @@ is_truenas()
     return $?
 }
 
-# Constant media size threshold for allowing swap partitions.
-: ${MIN_SWAPSAFE_MEDIASIZE:=$((60 * GB))}; readonly MIN_SWAPSAFE_MEDIASIZE
-
-# Check if it is safe to create swap partitions on the given disks.
-#
-# The result can be forced by setting SWAP_IS_SAFE in the environment to either
-# "YES" or "NO".
-#
-# Sets SWAP_IS_SAFE to "YES" if
-#   we are on TrueNAS
-#   *or*
-#   every disk in $@ is >= ${MIN_SWAPSAFE_MEDIASIZE} and none is USB and user says ok
-# Otherwise sets SWAP_IS_SAFE to "NO".
-#
-# Use `is_swap_safe` to check the value of ${SWAP_IS_SAFE}.
-check_is_swap_safe()
-{
-    # We assume swap is safe on TrueNAS,
-    # and we try to use the existing value for ${SWAP_IS_SAFE} if already set.
-    if ! is_truenas && [ -z "${SWAP_IS_SAFE}" ] ; then
-	local _disk
-	# Check every disk in $@, aborting if an unsafe disk is found.
-	for _disk ; do
-	    if [ $(diskinfo "${_disk}" | cut -f 3) -lt ${MIN_SWAPSAFE_MEDIASIZE} ] ||
-		camcontrol negotiate "${_disk}" -v | grep -qF 'umass-sim' ; then
-		SWAP_IS_SAFE="NO"
-		break
-	    fi
-	done
-    fi
-    # Make sure we have a valid value for ${SWAP_IS_SAFE}.
-    # If unset, we are either on TrueNAS or didn't find an unsafe disk.
-    case "${SWAP_IS_SAFE:="YES"}" in
-	# Accept YES or NO (case-insensitive).
-	[Yy][Ee][Ss])
-	    # Confirm swap setup with FreeNAS users.
-	    if ! is_truenas &&
-		! dialog --clear --title "${AVATAR_PROJECT}" \
-		    --yes-label "Create swap" --no-label "No swap" --yesno  \
-		    "Create 16GB swap partition on boot devices?" \
-		    7 74 ; then
-		SWAP_IS_SAFE="NO"
-	    fi
-	    ;;
-	[Nn][Oo]) ;;
-	# Reject other values.
-	*)  echo "Ignoring invalid value for SWAP_IS_SAFE: ${SWAP_IS_SAFE}"
-	    unset SWAP_IS_SAFE
-	    check_is_swap_safe "$@"
-	    ;;
-    esac
-    export SWAP_IS_SAFE
-}
-
-# A specialized checkyesno for SWAP_IS_SAFE.
-# Returns 0 if it is ok to set up swap on the chosen disks, otherwise 1.
-# `check_is_swap_safe` must be called once before calling `is_swap_safe`.
-is_swap_safe()
-{
-    case "${SWAP_IS_SAFE:?}" in
-	[Yy][Ee][Ss]) true;;
-	*) false;;
-    esac
-}
-
 # The old pre-install checks did several things
 # 1:  Don't allow going from FreeNAS to TrueNAS or vice versa
 # 2:  Don't allow downgrading.  (Not sure we can do that now.)
@@ -355,36 +290,21 @@ mount_disk()
 create_partitions()
 {
     local _disk="$1"
-    local _size="$2"
 
-    if [ -n "${_size}" ]; then
-	# Round ZFS partition size down to a multiple of 16 MiB (2^24),
-	# leaving units in MiB (2^20).
-	_size="-s $(( (_size >> 24) << 4 ))m"
+    # Create BIOS boot partition
+    if ! sgdisk -a1 -n1:24K:+1000K -t1:EF02 /dev/${_disk}; then
+            return 1
     fi
-    if gpart create -s GPT ${_disk}; then
-	if [ "$BOOTMODE" = "UEFI" ] ; then
-	  # EFI Mode
-	  if gpart add -s 260m -t efi ${_disk}; then
-	    if ! newfs_msdos -F 16 /dev/${_disk}p1 ; then
-	      return 1
-	    fi
-	  fi
-	else
-	  # BIOS Mode
-          if ! gpart add -t freebsd-boot -i 1 -s 512k ${_disk}; then
+    # Create EFI partition (Even if not used, allows user to switch to UEFI later)
+    if ! sgdisk -n2:1M:+512M -t2:EF00 /dev/${_disk}; then
 	    return 1
-	  fi
-	fi
-
-	if is_swap_safe; then
-	    gpart add -t freebsd-swap -a 4k -s 16g -i 3 ${_disk}
-	fi
-	if gpart add -t freebsd-zfs -a 4k -i 2 ${_size} ${_disk}; then
-	    return 0
-	fi
     fi
-    return 1
+    # Create boot pool
+    if ! sgdisk -n3:0:0 -t3:BF01 /dev/${_disk}; then
+	    return 1
+    fi
+
+    return 0
 }
 
 get_minimum_size()
@@ -395,18 +315,9 @@ get_minimum_size()
 
     for _disk
     do
-	_size=""
-	if create_partitions ${_disk} 1>&2; then
-	    _size=$(diskinfo ${_disk}p2 | cut -f 3)
-	    gmirror destroy -f swap || true
-	    gpart destroy -F ${_disk} 1>&2
-	fi
-	if [ -z "${_size}" ]; then
+	if ! create_partitions ${_disk} 1>&2; then
 	    echo "Could not do anything with ${_disk}, skipping" 1>&2
 	    continue
-	fi
-	if [ ${_min} -eq 0 -o ${_size} -lt ${_min} ]; then
-	    _min=${_size}
 	fi
     done
 
@@ -427,30 +338,24 @@ partition_disks()
 
     _disks=$*
 
-    check_is_swap_safe ${_disks}
-
     # Erase both typical metadata area.
     for _disk in ${_disks}; do
 	sgdisk --zap-all ${_disk} >/dev/null 2>&1 || true
-	dd if=/dev/zero of=/dev/${_disk} bs=1m count=2 >/dev/null
+	dd if=/dev/zero of=/dev/${_disk} bs=1M count=2 >/dev/null
 	_size=$(diskinfo ${_disk} | cut -f 3)
-	dd if=/dev/zero of=/dev/${_disk} bs=1m oseek=$((_size / MiB - 2)) >/dev/null || true
+	dd if=/dev/zero of=/dev/${_disk} bs=1M oseek=$((_size / MiB - 2)) >/dev/null || true
     done
 
-    _minsize=$(get_minimum_size ${_disks})
+    #_minsize=$(get_minimum_size ${_disks})
 
-    if [ ${_minsize} -lt ${MIN_ZFS_PARTITION_SIZE} ]; then
-	echo "Disk is too small to install ${AVATAR_PROJECT}" 1>&2
-	return 1
-    fi
+    #if [ ${_minsize} -lt ${MIN_ZFS_PARTITION_SIZE} ]; then
+    #	echo "Disk is too small to install ${AVATAR_PROJECT}" 1>&2
+    #	return 1
+    #fi
 
     _disksparts=$(for _disk in ${_disks}; do
-	create_partitions ${_disk} ${_minsize} >&2
-	if [ "$BOOTMODE" != "UEFI" ] ; then
-	    # Make the disk active
-	    gpart set -a active ${_disk} >&2
-	fi
-	echo ${_disk}p2
+	create_partitions ${_disk} >&2
+	echo ${_disk}3
     done)
 
     if [ $# -gt 1 ]; then
@@ -458,7 +363,22 @@ partition_disks()
     else
 	_mirror=""
     fi
-    zpool create -f -o cachefile=/tmp/zpool.cache -O mountpoint=none -O atime=off -O canmount=off freenas-boot ${_mirror} ${_disksparts}
+    zpool create -f -o cachefile=/tmp/zpool.cache -o ashift=12 -d \
+		-o feature@async_destroy=enabled \
+		-o feature@bookmarks=enabled \
+		-o feature@embedded_data=enabled \
+		-o feature@empty_bpobj=enabled \
+		-o feature@enabled_txg=enabled \
+		-o feature@extensible_dataset=enabled \
+		-o feature@filesystem_limits=enabled \
+		-o feature@hole_birth=enabled \
+		-o feature@large_blocks=enabled \
+		-o feature@lz4_compress=enabled \
+		-o feature@spacemap_histogram=enabled \
+		-o feature@userobj_accounting=enabled \
+		-O acltype=posixacl -O canmount=off -O compression=lz4 -O devices=off -O mountpoint=none \
+		-O normalization=formD -O relatime=on -O xattr=sa \
+		freenas-boot ${_mirror} ${_disksparts}
     zfs set compression=on freenas-boot
     zfs create -o canmount=off freenas-boot/ROOT
     zfs create -o mountpoint=legacy freenas-boot/ROOT/${BENAME}
@@ -980,11 +900,11 @@ menu_install()
         OS=TrueNAS
     fi
 
-    # Tell it to look in /.mount for the packages.
-    /usr/local/bin/freenas-install -P /.mount/${OS}/Packages -M /.mount/${OS}-MANIFEST /tmp/data
+    # Start the installation
+    if ! debootstrap truenas /tmp/data; then
+	    echo "ERROR: Failed debootstrap truenas"
+    fi
 
-    rm -f /tmp/data/conf/default/etc/fstab /tmp/data/conf/base/etc/fstab
-    ln /tmp/data/etc/fstab /tmp/data/conf/base/etc/fstab || echo "Cannot link fstab"
     if [ "${_do_upgrade}" -ne 0 ]; then
 	if [ -f /tmp/hostid ]; then
             cp -p /tmp/hostid /tmp/data/conf/base/etc
@@ -1015,26 +935,10 @@ menu_install()
 	fi
     fi
     
-    # To support Xen, we need to disable HPET.
-    if [ "$(/tmp/data/usr/local/sbin/dmidecode -s system-product-name)" = "HVM domU" ]; then
-	if ! grep -q 'hint.hpet.0.clock' /tmp/data/boot/loader.conf.local 2>/dev/null ; then
-	    echo 'hint.hpet.0.clock="0"' >> /tmp/data/boot/loader.conf.local
-	fi
-    fi
-    # Debugging pause.
-    # read foo
-    
-    # XXX: Fixup
-    # tar cf - -C /tmp/data/conf/base etc | tar xf - -C /tmp/data/
-    
     # beadm will need a devfs
     mount -t devfs devfs /tmp/data/dev
     # Create a temporary /var
     mount -t tmpfs tmpfs /tmp/data/var
-    chroot /tmp/data /usr/sbin/mtree -deUf /etc/mtree/BSD.var.dist -p /var
-    # We need this hack due to sqlite3 called from rc.conf.local.
-    chroot /tmp/data /sbin/ldconfig /usr/local/lib
-    chroot /tmp/data /etc/rc.d/ldconfig forcestart
     # Save current serial console settings into database.
     save_serial_settings /tmp/data
     # Set default boot filesystem
