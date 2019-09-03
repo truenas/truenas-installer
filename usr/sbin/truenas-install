@@ -872,7 +872,7 @@ menu_install()
 
     # Start the installation
     if ! debootstrap --no-check-gpg \
-	    --include=truenas,grub-pc,grub-efi-amd64,shim-signed,zfs-modules-$(uname -r)-amd64,zfsutils-linux,dosfstools \
+	    --include=truenas,grub-pc,grub-efi-amd64,shim-signed,zfs-modules-$(uname -r)-amd64,zfsutils-linux,dosfstools,zfs-initramfs \
 	    truenas \
 	    /tmp/data file:///cdrom/; then
 	    echo "ERROR: Failed debootstrap truenas"
