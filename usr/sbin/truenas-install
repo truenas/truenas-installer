@@ -205,35 +205,23 @@ install_loader()
     shift
     _disks="$*"
 
-
-    # When doing inplace upgrades, its entirely possible we've
-    # booted in the wrong mode (I.E. bios/efi)
-    # Default to re-stamping what was already used on the current install
-    _boottype="$BOOTMODE"
-    if [ "${_upgrade_type}" = "inplace" ] ; then
-      if gpart show ${_disks} | grep -qF 'efi' ; then
-         _boottype="UEFI"
-      else
-         _boottype="BIOS"
-      fi
-    fi
+    # Tell GRUB we are booting from ZFS
+    echo 'GRUB_CMDLINE_LINUX="root=ZFS=freenas-boot/ROOT/default"' >> ${_mnt}/etc/default/grub
+    mkdir -p ${_mnt}/boot/efi
+    chroot ${_mnt} update-grub
 
     for _disk in $_disks
     do
-	if [ "$_boottype" = "UEFI" ] ; then
-	    echo "Stamping EFI loader on: ${_disk}"
-	    mkdir -p /tmp/efi
-	    mount -t msdosfs /dev/${_disk}p1 /tmp/efi
-	    # Copy the .efi file and create a fallback startup script
-	    mkdir -p /tmp/efi/efi/boot
-	    cp ${_mnt}/boot/boot1.efi /tmp/efi/efi/boot/BOOTx64.efi
-	    echo "BOOTx64.efi" > /tmp/efi/efi/boot/startup.nsh
-	    umount /tmp/efi
-	else
 	    echo "Stamping GPT loader on: ${_disk}"
-	    gpart modify -i 1 -t freebsd-boot ${_disk}
-	    chroot ${_mnt} gpart bootcode -b /boot/pmbr -p /boot/gptzfsboot -i 1 /dev/${_disk}
-	fi
+	    chroot ${_mnt} grub-install /dev/${_disk}
+
+	    echo "Stamping EFI loader on: ${_disk}"
+	    chroot ${_mnt} mkdosfs -F 32 -s 1 -n EFI /dev/${_disk}2
+	    chroot ${_mnt} mount -t vfat vfat /dev/${_disk}2 /boot/efi
+	    chroot ${_mnt} grub-install --target=x86_64-efi \
+		    --efi-directory=/boot/efi \
+		    --bootloader-id=debian --recheck --no-floppy
+	    chroot ${_mnt} umount /boot/efi
     done
 
     return 0
@@ -476,6 +464,9 @@ disk_is_freenas()
 	_rv=0
     fi
     # XXX side effect, shouldn't be here!
+    if [ ! -d "/tmp/data_preserved" ] ; then
+        mkdir /tmp/data_preserved
+    fi
     cp -pR /tmp/data_old/. /tmp/data_preserved
     umount /tmp/data_old
     if [ $_rv -eq 0 ]; then
@@ -631,7 +622,7 @@ menu_install()
     local data_part
     local upgrade_style="new"
     local whendone=""
-    
+
     local readonly CD_UPGRADE_SENTINEL="/data/cd-upgrade"
     local readonly NEED_UPDATE_SENTINEL="/data/need-update"
     # create a sentinel file for post-fresh-install boots
@@ -858,24 +849,6 @@ menu_install()
       BENAME="default"
       export BENAME
 
-      if [ -n "$(kenv grub.platform 2>/dev/null)" ] ; then
-        if [ "$(kenv grub.platform)" = "efi" ] ; then
-          BOOTMODE="UEFI"
-        else
-          BOOTMODE="BIOS"
-	fi
-      fi
-      if ${INTERACTIVE}; then
-        # Prompt for UEFI or BIOS mode
-        if ask_boot_method
-        then
-          BOOTMODE="UEFI"
-	else
-	  BOOTMODE="BIOS"
-        fi
-      fi
-      export BOOTMODE
-
       # We repartition on fresh install, or old upgrade_style
       # This destroys all of the pool data, and
       # ensures a clean filesystems.
@@ -890,9 +863,6 @@ menu_install()
 	# newly upgraded system completely horks the system
 	cp /data/factory-v1.db /tmp/data/data/
 	chown www:www /tmp/data/data/factory-v1.db
-    else
-	cp -R /data/* /tmp/data/data
-	chown -R www:www /tmp/data/data
     fi
 
     local OS=FreeNAS
@@ -901,14 +871,21 @@ menu_install()
     fi
 
     # Start the installation
-    if ! debootstrap truenas /tmp/data; then
+    if ! debootstrap --no-check-gpg \
+	    --include=truenas,grub-pc,grub-efi-amd64,shim-signed,zfs-modules-$(uname -r)-amd64,zfsutils-linux,dosfstools \
+	    truenas \
+	    /tmp/data file:///cdrom/; then
 	    echo "ERROR: Failed debootstrap truenas"
     fi
 
+    # Set APT source location
+    echo "deb http://apt.tn.ixsystems.com/truenas/unstable/ truenas main" \
+	    > /tmp/data/etc/apt/sources.list
+
     if [ "${_do_upgrade}" -ne 0 ]; then
-	if [ -f /tmp/hostid ]; then
-            cp -p /tmp/hostid /tmp/data/conf/base/etc
-	fi
+	#if [ -f /tmp/hostid ]; then
+        #    cp -p /tmp/hostid /tmp/data/conf/base/etc
+	#fi
 	if [ -d /tmp/.ssh ]; then
             cp -pR /tmp/.ssh /tmp/data/root/
 	fi
@@ -936,11 +913,13 @@ menu_install()
     fi
     
     # beadm will need a devfs
-    mount -t devfs devfs /tmp/data/dev
+    mount --rbind /dev /tmp/data/dev
+    mount --rbind /proc /tmp/data/proc
+    mount --rbind /sys /tmp/data/sys
     # Create a temporary /var
     mount -t tmpfs tmpfs /tmp/data/var
     # Save current serial console settings into database.
-    save_serial_settings /tmp/data
+    #save_serial_settings /tmp/data
     # Set default boot filesystem
     zpool set bootfs=freenas-boot/ROOT/${BENAME} freenas-boot
     install_loader /tmp/data ${_realdisks}
@@ -968,9 +947,8 @@ menu_install()
     if is_truenas && [ "${_do_upgrade}" -eq 0 ]; then
         : > /tmp/data/${TRUENAS_EULA_PENDING_SENTINEL}
     fi
-    # Finally, before we unmount, start a scrub.
-    # zpool scrub freenas-boot || true
 
+    umount /tmp/data/dev/pts || true
     umount /tmp/data/dev
     umount /tmp/data/var
     umount /tmp/data/
@@ -981,12 +959,7 @@ menu_install()
     trap - EXIT
 
     _msg="The $AVATAR_PROJECT $_action on ${_realdisks} succeeded!\n"
-    _dlv=`/sbin/sysctl -n vfs.nfs.diskless_valid 2> /dev/null`
-    if [ ${_dlv:=0} -ne 0 ]; then
-        _msg="${_msg}Please reboot, and change BIOS boot order to *not* boot over network."
-    else
-        _msg="${_msg}Please reboot and remove the installation media."
-    fi
+    _msg="${_msg}Please reboot and remove the installation media."
     if ${INTERACTIVE}; then
 	dialog --msgbox "$_msg" 6 74
     elif [ -n "${whendone}" ]; then
