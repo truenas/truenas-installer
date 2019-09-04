@@ -208,16 +208,17 @@ install_loader()
     # Tell GRUB we are booting from ZFS
     echo 'GRUB_CMDLINE_LINUX="root=ZFS=freenas-boot/ROOT/default"' >> ${_mnt}/etc/default/grub
     mkdir -p ${_mnt}/boot/efi
+    chroot ${_mnt} update-initramfs -u -k all
     chroot ${_mnt} update-grub
 
     for _disk in $_disks
     do
-	    echo "Stamping GPT loader on: ${_disk}"
+	    echo "Stamping GPT loader on: /dev/${_disk}"
 	    chroot ${_mnt} grub-install /dev/${_disk}
 
 	    echo "Stamping EFI loader on: ${_disk}"
 	    chroot ${_mnt} mkdosfs -F 32 -s 1 -n EFI /dev/${_disk}2
-	    chroot ${_mnt} mount -t vfat vfat /dev/${_disk}2 /boot/efi
+	    chroot ${_mnt} mount -t vfat /dev/${_disk}2 /boot/efi
 	    chroot ${_mnt} grub-install --target=x86_64-efi \
 		    --efi-directory=/boot/efi \
 		    --bootloader-id=debian --recheck --no-floppy
@@ -829,12 +830,6 @@ menu_install()
 	done
     fi
 
-
-    # Hack #1
-    export ROOTIMAGE=1
-    # Hack #2
-    ls $(get_product_path) > /dev/null
-
     if [ ${_do_upgrade} -eq 1 -a ${upgrade_style} = "new" -a "${_upgrade_type}" = "inplace" ]
     then
       # Set the boot-environment name
@@ -872,7 +867,7 @@ menu_install()
 
     # Start the installation
     if ! debootstrap --no-check-gpg \
-	    --include=truenas,grub-pc,grub-efi-amd64,shim-signed,zfs-modules-$(uname -r)-amd64,zfsutils-linux,dosfstools,zfs-initramfs \
+	    --include=grub-pc,grub-efi-amd64,shim-signed,zfs-modules-$(uname -r),zfsutils-linux,dosfstools,zfs-initramfs,truenas \
 	    truenas \
 	    /tmp/data file:///cdrom/; then
 	    echo "ERROR: Failed debootstrap truenas"
@@ -916,8 +911,6 @@ menu_install()
     mount --rbind /dev /tmp/data/dev
     mount --rbind /proc /tmp/data/proc
     mount --rbind /sys /tmp/data/sys
-    # Create a temporary /var
-    mount -t tmpfs tmpfs /tmp/data/var
     # Save current serial console settings into database.
     #save_serial_settings /tmp/data
     # Set default boot filesystem
@@ -940,7 +933,8 @@ menu_install()
     elif [ "${_do_upgrade}" -eq 0 ]; then
 	if [ -n "${_password}" ]; then
 		# Set the root password
-		chroot /tmp/data /etc/netcli reset_root_pw "${_password}"
+		echo "TODO: Set root PW"
+		#chroot /tmp/data /etc/netcli reset_root_pw "${_password}"
 	fi
     fi
     : > /tmp/data/${FIRST_INSTALL_SENTINEL}
@@ -950,7 +944,8 @@ menu_install()
 
     umount /tmp/data/dev/pts || true
     umount /tmp/data/dev
-    umount /tmp/data/var
+    umount /tmp/data/proc
+    umount /tmp/data/sys
     umount /tmp/data/
 
     # End critical section.
