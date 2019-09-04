@@ -325,11 +325,16 @@ partition_disks()
     local _minsize
     local _size
 
+    # Create and destroy existing pool (if exists)
+    zpool import -N -f freenas-boot || true
+    zpool destroy -f freenas-boot || true
+
     _disks=$*
 
     # Erase both typical metadata area.
     for _disk in ${_disks}; do
-	sgdisk --zap-all ${_disk} >/dev/null 2>&1 || true
+	sgdisk -Z ${_disk} >/dev/null 2>&1 || true
+	sgdisk -Z ${_disk} >/dev/null 2>&1 || true
 	dd if=/dev/zero of=/dev/${_disk} bs=1M count=2 >/dev/null
 	#_size=$(diskinfo ${_disk} | cut -f 3)
 	#dd if=/dev/zero of=/dev/${_disk} bs=1M oseek=$((_size / MiB - 2)) >/dev/null || true
@@ -877,6 +882,24 @@ menu_install()
     echo "deb http://apt.tn.ixsystems.com/truenas/unstable/ truenas main" \
 	    > /tmp/data/etc/apt/sources.list
 
+    # Always import zfs pool
+    cat >/tmp/data/etc/systemd/system/zfs-import-bootpool.service << EOF
+[Unit]
+DefaultDependencies=no
+Before=zfs-import-scan.service
+Before=zfs-import-cache.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/sbin/zpool import -N -o cachefile=none freenas-boot
+
+[Install]
+WantedBy=zfs-import.target
+EOF
+    # Enable systemd service
+    chroot /tmp/data systemctl enable zfs-import-bootpool.service
+
     if [ "${_do_upgrade}" -ne 0 ]; then
 	#if [ -f /tmp/hostid ]; then
         #    cp -p /tmp/hostid /tmp/data/conf/base/etc
@@ -933,7 +956,7 @@ menu_install()
     elif [ "${_do_upgrade}" -eq 0 ]; then
 	if [ -n "${_password}" ]; then
 		# Set the root password
-		echo "TODO: Set root PW"
+		chroot /tmp/data "echo \"root:${_password}\" | chpasswd"
 		#chroot /tmp/data /etc/netcli reset_root_pw "${_password}"
 	fi
     fi
