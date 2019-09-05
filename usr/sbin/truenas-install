@@ -71,7 +71,7 @@ get_physical_disks_list()
 {
     local _disk
 
-    for _disk in $(ls /dev/sd* | grep -v '[0-9]' | sed 's|/dev||g')
+    for _disk in $(ls /dev/sd* /dev/vd* /dev/hd* /dev/xvd* | grep -v '[0-9]' | sed 's|/dev||g')
     do
 	VAL="${VAL} ${_disk}"
     done
@@ -649,7 +649,7 @@ menu_install()
 	    X)	case "${OPTARG}" in
 		    reboot)	whendone=reboot ;;
 		    "wait")	whendone=wait ;;
-		    halt)	whendone=halt ;;
+		    halt)	whendone="shutdown now" ;;
 		    *)		whendone="" ;;
 		esac
 		;;
@@ -882,6 +882,16 @@ menu_install()
     echo "deb http://apt.tn.ixsystems.com/truenas/unstable/ truenas main" \
 	    > /tmp/data/etc/apt/sources.list
 
+    # Enable DHCP via systemd for now
+    cat >/tmp/data/etc/systemd/network/dhcp.network <<EOF
+[Match]
+Name=en*
+
+[Network]
+DHCP=yes
+EOF
+    chroot /tmp/data systemctl enable systemd-networkd
+
     # Always import zfs pool
     cat >/tmp/data/etc/systemd/system/zfs-import-bootpool.service << EOF
 [Unit]
@@ -892,7 +902,7 @@ Before=zfs-import-cache.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/sbin/zpool import -N -o cachefile=none freenas-boot
+ExecStart=/sbin/zpool import -N -o cachefile=none freenas-boot || true
 
 [Install]
 WantedBy=zfs-import.target
@@ -984,7 +994,7 @@ EOF
 	dialog --msgbox "$_msg" 6 74
     elif [ -n "${whendone}" ]; then
 	case "${whendone}" in
-	    halt)	halt -p ;;
+	    halt)	shutdown now ;;
 	    "wait")	dialog --msgbox "$_msg" 6 74 ;;
 	esac
 	return 0
@@ -1007,7 +1017,7 @@ menu_reboot()
 menu_shutdown()
 {
     echo "Halting and powering down..."
-    halt -p >/dev/null
+    shutdown now >/dev/null
 }
 
 main()
