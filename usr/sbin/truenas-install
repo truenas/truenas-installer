@@ -956,7 +956,7 @@ EOF
     elif [ "${_do_upgrade}" -eq 0 ]; then
 	if [ -n "${_password}" ]; then
 		# Set the root password
-		chroot /tmp/data "echo \"root:${_password}\" | chpasswd"
+		chroot /tmp/data echo "root:${_password}" | chroot /tmp/data chpasswd
 		#chroot /tmp/data /etc/netcli reset_root_pw "${_password}"
 	fi
     fi
