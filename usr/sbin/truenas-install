@@ -872,13 +872,23 @@ menu_install()
 
     # Start the installation
     if ! debootstrap --no-check-gpg \
-	    --include=busybox,grub-pc,grub-efi-amd64,shim-signed,zfs-modules-$(uname -r),zfsutils-linux,dosfstools,zfs-initramfs,truenas \
+	    --include=busybox,grub-pc,grub-efi-amd64,shim-signed,zfs-modules-$(uname -r),zfsutils-linux,dosfstools,zfs-initramfs \
 	    truenas \
 	    /tmp/data file:///cdrom/; then
 	    echo "ERROR: Failed debootstrap truenas"
     fi
 
-    # Set APT source location
+    # Do apt installation now
+    mkdir /tmp/data/cdrom
+    mount --rbind /cdrom /tmp/data/cdrom
+    # Set local APT source location
+    echo "deb [trusted=yes] file:///cdrom/ truenas main" \
+	    > /tmp/data/etc/apt/sources.list
+    chroot /tmp/data apt update
+    chroot /tmp/data apt install -y truenas
+    umount /tmp/data/cdrom
+
+    # Set remote APT source location
     echo "deb http://apt.tn.ixsystems.com/truenas/unstable/ truenas main" \
 	    > /tmp/data/etc/apt/sources.list
 
