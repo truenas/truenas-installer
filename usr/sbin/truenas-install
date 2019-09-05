@@ -335,7 +335,7 @@ partition_disks()
     for _disk in ${_disks}; do
 	sgdisk -Z ${_disk} >/dev/null 2>&1 || true
 	sgdisk -Z ${_disk} >/dev/null 2>&1 || true
-	dd if=/dev/zero of=/dev/${_disk} bs=1M count=2 >/dev/null
+	#dd if=/dev/zero of=/dev/${_disk} bs=1M count=2 >/dev/null
 	#_size=$(diskinfo ${_disk} | cut -f 3)
 	#dd if=/dev/zero of=/dev/${_disk} bs=1M oseek=$((_size / MiB - 2)) >/dev/null || true
     done
