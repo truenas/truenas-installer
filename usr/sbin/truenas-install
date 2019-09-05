@@ -882,7 +882,7 @@ menu_install()
     mkdir /tmp/data/cdrom
     mount --rbind /cdrom /tmp/data/cdrom
     # Set local APT source location
-    echo "deb [trusted=yes] file:///cdrom/ truenas main" \
+    echo "deb [trusted=yes check-date=no] file:///cdrom/ truenas main" \
 	    > /tmp/data/etc/apt/sources.list
     chroot /tmp/data apt update
     chroot /tmp/data apt install -y truenas
