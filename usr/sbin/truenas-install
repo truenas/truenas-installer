@@ -214,7 +214,7 @@ install_loader()
     for _disk in $_disks
     do
 	    echo "Stamping GPT loader on: /dev/${_disk}"
-	    chroot ${_mnt} grub-install /dev/${_disk}
+	    chroot ${_mnt} grub-install --target=i386-pc /dev/${_disk}
 
 	    echo "Stamping EFI loader on: ${_disk}"
 	    chroot ${_mnt} mkdosfs -F 32 -s 1 -n EFI /dev/${_disk}2
