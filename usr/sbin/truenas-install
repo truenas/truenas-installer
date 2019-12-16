@@ -222,6 +222,8 @@ install_loader()
 	    chroot ${_mnt} grub-install --target=x86_64-efi \
 		    --efi-directory=/boot/efi \
 		    --bootloader-id=debian --recheck --no-floppy
+	    chroot ${_mnt} mkdir -p /boot/efi/EFI/boot
+	    chroot ${_mnt} cp /boot/efi/EFI/debian/grubx64.efi /boot/efi/EFI/boot/bootx64.efi
 	    chroot ${_mnt} umount /boot/efi
     done
 
