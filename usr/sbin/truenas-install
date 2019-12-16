@@ -219,6 +219,7 @@ install_loader()
 	    echo "Stamping EFI loader on: ${_disk}"
 	    chroot ${_mnt} mkdosfs -F 32 -s 1 -n EFI /dev/${_disk}2
 	    chroot ${_mnt} mount -t vfat /dev/${_disk}2 /boot/efi
+	    chroot ${_mnt} modprobe efivars
 	    chroot ${_mnt} grub-install --target=x86_64-efi \
 		    --efi-directory=/boot/efi \
 		    --bootloader-id=debian --recheck --no-floppy
