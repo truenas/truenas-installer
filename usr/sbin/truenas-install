@@ -71,7 +71,7 @@ get_physical_disks_list()
 {
     local _disk
 
-    for _disk in $(ls /dev/sd* /dev/vd* /dev/hd* /dev/xvd* | grep -v '[0-9]' | sed 's|/dev||g')
+    for _disk in $(ls /dev/sd* /dev/vd* /dev/hd* /dev/xvd* | grep -v '[0-9]' | sed 's|/dev/||g')
     do
 	VAL="${VAL} ${_disk}"
     done
