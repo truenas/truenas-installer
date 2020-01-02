@@ -409,6 +409,7 @@ partition_disks()
 	#dd if=/dev/zero of=/dev/${_disk} bs=1M oseek=$((_size / MiB - 2)) >/dev/null || true
     done
 
+    check_is_swap_safe ${_disks}
     #_minsize=$(get_minimum_size ${_disks})
 
     #if [ ${_minsize} -lt ${MIN_ZFS_PARTITION_SIZE} ]; then
