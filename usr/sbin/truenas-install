@@ -74,7 +74,7 @@ check_is_swap_safe()
 	local _disk
 	# Check every disk in $@, aborting if an unsafe disk is found.
 	for _disk ; do
-	    if [ $(lsblk -b --output SIZE -n -d "${_disk}") -lt ${MIN_SWAPSAFE_MEDIASIZE} ] &&
+	    if [ $(lsblk -b --output SIZE -n -d "/dev/${_disk}") -lt ${MIN_SWAPSAFE_MEDIASIZE} ] &&
 		grep -qF "0" /sys/block/${name}/removable ; then
 		SWAP_IS_SAFE="NO"
 		break
@@ -353,10 +353,18 @@ create_partitions()
     if ! sgdisk -a${alignment_multiple} -n1:0:+1024K -t1:EF02 /dev/${_disk}; then
             return 1
     fi
+
     # Create EFI partition (Even if not used, allows user to switch to UEFI later)
     if ! sgdisk -n2:0:+524288K -t2:EF00 /dev/${_disk}; then
 	    return 1
     fi
+
+    if is_swap_safe; then
+        if ! sgdisk -n4:0:+16777216K -t4:8200 /dev/${_disk}; then
+            return 1
+        fi
+    fi
+
     # Create boot pool
     if ! sgdisk -n3:0:0 -t3:BF01 /dev/${_disk}; then
 	    return 1
