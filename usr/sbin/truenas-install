@@ -70,12 +70,16 @@ check_is_swap_safe()
 {
     # We assume swap is safe on TrueNAS,
     # and we try to use the existing value for ${SWAP_IS_SAFE} if already set.
-    if ! is_truenas && [ -z "${SWAP_IS_SAFE}" ] ; then
+    if [ -z "${SWAP_IS_SAFE}" ] ; then
 	local _disk
+	local sector_size
+	local sectors
 	# Check every disk in $@, aborting if an unsafe disk is found.
 	for _disk ; do
-	    if [ $(lsblk -b --output SIZE -n -d "/dev/${_disk}") -lt ${MIN_SWAPSAFE_MEDIASIZE} ] &&
-		grep -qF "0" /sys/block/${name}/removable ; then
+	  sector_size=$(blkid -i /dev/${_disk} | sed "s/.*LOGICAL_SECTOR_SIZE=\"\([0-9]\+\)\"/\1/")
+	  sectors=$(cat /sys/block/${_disk}/size)
+	    if [ $((sector_size * sectors)) -lt ${MIN_SWAPSAFE_MEDIASIZE} ] &&
+		grep -qF "0" /sys/block/${_disk}/removable ; then
 		SWAP_IS_SAFE="NO"
 		break
 	    fi
@@ -87,8 +91,7 @@ check_is_swap_safe()
 	# Accept YES or NO (case-insensitive).
 	[Yy][Ee][Ss])
 	    # Confirm swap setup
-	    if ! is_truenas &&
-		! dialog --clear --title "${AVATAR_PROJECT}" \
+	    if ! dialog --clear --title "${AVATAR_PROJECT}" \
 		    --yes-label "Create swap" --no-label "No swap" --yesno  \
 		    "Create 16GB swap partition on boot devices?" \
 		    7 74 ; then
