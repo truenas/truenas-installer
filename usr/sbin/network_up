@@ -1,0 +1,5 @@
+#!/bin/sh
+
+udpkg -i /cdrom/pool/main/l/linux-signed-amd64/nic-*
+echo "Loading e1000 kernel module"
+insmod  /lib/modules/5.*/kernel/drivers/net/ethernet/intel/e1000/e1000.ko
