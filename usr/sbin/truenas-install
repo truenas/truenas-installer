@@ -51,6 +51,74 @@ wait_keypress()
     read -p "Press ENTER to continue." _tmp
 }
 
+# Constant media size threshold for allowing swap partitions.
+: ${MIN_SWAPSAFE_MEDIASIZE:=$((60 * GB))}; readonly MIN_SWAPSAFE_MEDIASIZE
+
+# Check if it is safe to create swap partitions on the given disks.
+#
+# The result can be forced by setting SWAP_IS_SAFE in the environment to either
+# "YES" or "NO".
+#
+# Sets SWAP_IS_SAFE to "YES" if
+#   we are on TrueNAS
+#   *or*
+#   every disk in $@ is >= ${MIN_SWAPSAFE_MEDIASIZE} and none is USB and user says ok
+# Otherwise sets SWAP_IS_SAFE to "NO".
+#
+# Use `is_swap_safe` to check the value of ${SWAP_IS_SAFE}.
+check_is_swap_safe()
+{
+    # We assume swap is safe on TrueNAS,
+    # and we try to use the existing value for ${SWAP_IS_SAFE} if already set.
+    if [ -z "${SWAP_IS_SAFE}" ] ; then
+	local _disk
+	local sector_size
+	local sectors
+	# Check every disk in $@, aborting if an unsafe disk is found.
+	for _disk ; do
+	  sector_size=$(blkid -i /dev/${_disk} | sed "s/.*LOGICAL_SECTOR_SIZE=\"\([0-9]\+\)\"/\1/")
+	  sectors=$(cat /sys/block/${_disk}/size)
+	    if [ $((sector_size * sectors)) -lt ${MIN_SWAPSAFE_MEDIASIZE} ] &&
+		grep -qF "0" /sys/block/${_disk}/removable ; then
+		SWAP_IS_SAFE="NO"
+		break
+	    fi
+	done
+    fi
+    # Make sure we have a valid value for ${SWAP_IS_SAFE}.
+    # If unset, we are either on TrueNAS or didn't find an unsafe disk.
+    case "${SWAP_IS_SAFE:="YES"}" in
+	# Accept YES or NO (case-insensitive).
+	[Yy][Ee][Ss])
+	    # Confirm swap setup
+	    if ! dialog --clear --title "${AVATAR_PROJECT}" \
+		    --yes-label "Create swap" --no-label "No swap" --yesno  \
+		    "Create 16GB swap partition on boot devices?" \
+		    7 74 ; then
+		SWAP_IS_SAFE="NO"
+	    fi
+	    ;;
+	[Nn][Oo]) ;;
+	# Reject other values.
+	*)  echo "Ignoring invalid value for SWAP_IS_SAFE: ${SWAP_IS_SAFE}"
+	    unset SWAP_IS_SAFE
+	    check_is_swap_safe "$@"
+	    ;;
+    esac
+    export SWAP_IS_SAFE
+}
+
+# A specialized checkyesno for SWAP_IS_SAFE.
+# Returns 0 if it is ok to set up swap on the chosen disks, otherwise 1.
+# `check_is_swap_safe` must be called once before calling `is_swap_safe`.
+is_swap_safe()
+{
+    case "${SWAP_IS_SAFE:?}" in
+	[Yy][Ee][Ss]) true;;
+	*) false;;
+    esac
+}
+
 # return 0 if no raid devices, or !0 if there are some.
 get_raid_present()
 {
@@ -288,10 +356,18 @@ create_partitions()
     if ! sgdisk -a${alignment_multiple} -n1:0:+1024K -t1:EF02 /dev/${_disk}; then
             return 1
     fi
+
     # Create EFI partition (Even if not used, allows user to switch to UEFI later)
     if ! sgdisk -n2:0:+524288K -t2:EF00 /dev/${_disk}; then
 	    return 1
     fi
+
+    if is_swap_safe; then
+        if ! sgdisk -n4:0:+16777216K -t4:8200 /dev/${_disk}; then
+            return 1
+        fi
+    fi
+
     # Create boot pool
     if ! sgdisk -n3:0:0 -t3:BF01 /dev/${_disk}; then
 	    return 1
@@ -344,6 +420,7 @@ partition_disks()
 	#dd if=/dev/zero of=/dev/${_disk} bs=1M oseek=$((_size / MiB - 2)) >/dev/null || true
     done
 
+    check_is_swap_safe ${_disks}
     #_minsize=$(get_minimum_size ${_disks})
 
     #if [ ${_minsize} -lt ${MIN_ZFS_PARTITION_SIZE} ]; then
