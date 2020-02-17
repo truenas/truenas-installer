@@ -1,3 +1,9 @@
+truenas-installer (1.0.1) bullseye-truenas-unstable; urgency=medium
+
+  * New release
+
+ -- William Grzybowski <william@grzy.org>  Mon, 17 Feb 2020 12:18:40 -0300
+
 truenas-installer (1.0.0~truenas+1) bullseye-truenas-unstable; urgency=medium
 
   * Initial upload for testing
