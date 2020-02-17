@@ -9,7 +9,7 @@ Package: truenas-installer
 Package-Type: udeb
 Architecture: all
 Section: debian-installer
-Depends: ${misc:Depends}, partman-base, finish-install
+Depends: ${misc:Depends}, partman-base, finish-install, gawk, setserial
 Description: TrueNAS installation for Debian
  This package provides the TrueNAS Debian installation scripts and tools.
 

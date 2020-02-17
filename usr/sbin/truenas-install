@@ -304,31 +304,27 @@ save_serial_settings()
 
     # If the installer was booted with serial mode enabled, we should
     # save these values to the installed system
-    USESERIAL=$((`sysctl -n debug.boothowto` & 0x1000))
-    if [ "$USESERIAL" -eq 0 ] ; then return 0; fi
 
-    # BIOS has vidconsole, UEFI has efi.
-    if [ "$BOOTMODE" = "UEFI" ] ; then
-       videoconsole="efi"
-    else
-       videoconsole="vidconsole"
-    fi
-
-    # Enable serial/internal for BSD loader
-    echo 'boot_multicons="YES"' >> ${_mnt}/boot/loader.conf
-    echo 'boot_serial="YES"' >> ${_mnt}/boot/loader.conf
-    echo "console=\"comconsole,${videoconsole}\"" >> ${_mnt}/boot/loader.conf
+    dmesg|grep "Kernel command line"|grep -q "console=ttyS")
+    USESERIAL=$?
+    if [ "$USESERIAL" -ne 0 ] ; then return 0; fi
 
     chroot ${_mnt} /usr/local/bin/sqlite3 /data/freenas-v1.db "update system_advanced set adv_serialconsole = 1"
-    SERIALSPEED=`kenv hw.uart.console | sed -En 's/.*br:([0-9]+).*/\1/p'`
+
+    tty=$(dmesg|grep -E "ttyS[0-9] at I/O"| head -1)
+    SERIALSPEED=$(setserial -G /dev/$tty|awk '{print $9')
     if [ -n "$SERIALSPEED" ] ; then
-       echo "comconsole_speed=\"$SERIALSPEED\"" >> ${_mnt}/boot/loader.conf
        chroot ${_mnt} /usr/local/bin/sqlite3 /data/freenas-v1.db "update system_advanced set adv_serialspeed = $SERIALSPEED"
+       unit=$(echo $tty|sed 's/[^0-9]//g')
+       echo "serial --unit=$unit --speed=$SERIALSPEED --word=8 --parity=no --stop=1" > ${_mnt}/boot/grub/grub.cfg.new
+       cat ${_mnt}/boot/grub/grub.cfg >> ${_mnt}/boot/grub/grub.cfg.new
+       mv ${_mnt}/boot/grub/grub.cfg.new ${_mnt}/boot/grub/grub.cfg
     fi
-    SERIALPORT=`kenv hw.uart.console | sed -En 's/.*io:([0-9a-fx]+).*/\1/p'`
+    SERIALPORT=$(setserial -G /dev/$tty|awk '{print $5')
     if [ -n "$SERIALPORT" ] ; then
        chroot ${_mnt} /usr/local/bin/sqlite3 /data/freenas-v1.db "update system_advanced set adv_serialport = '$SERIALPORT'"
     fi
+
 }
 
 mount_disk()
@@ -1036,7 +1032,7 @@ EOF
     mount --rbind /proc /tmp/data/proc
     mount --rbind /sys /tmp/data/sys
     # Save current serial console settings into database.
-    #save_serial_settings /tmp/data
+    save_serial_settings /tmp/data
     # Set default boot filesystem
     zpool set bootfs=freenas-boot/ROOT/${BENAME} freenas-boot
     install_loader /tmp/data ${_realdisks}
