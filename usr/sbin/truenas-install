@@ -312,7 +312,7 @@ save_serial_settings()
     chroot ${_mnt} /usr/local/bin/sqlite3 /data/freenas-v1.db "update system_advanced set adv_serialconsole = 1"
 
     tty=$(dmesg|grep -E "ttyS[0-9] at I/O"| head -1)
-    SERIALSPEED=$(setserial -G /dev/$tty|awk '{print $9')
+    SERIALSPEED=$(setserial -G /dev/$tty|awk '{print $9}')
     if [ -n "$SERIALSPEED" ] ; then
        chroot ${_mnt} /usr/local/bin/sqlite3 /data/freenas-v1.db "update system_advanced set adv_serialspeed = $SERIALSPEED"
        unit=$(echo $tty|sed 's/[^0-9]//g')
@@ -320,7 +320,7 @@ save_serial_settings()
        cat ${_mnt}/boot/grub/grub.cfg >> ${_mnt}/boot/grub/grub.cfg.new
        mv ${_mnt}/boot/grub/grub.cfg.new ${_mnt}/boot/grub/grub.cfg
     fi
-    SERIALPORT=$(setserial -G /dev/$tty|awk '{print $5')
+    SERIALPORT=$(setserial -G /dev/$tty|awk '{print $5}')
     if [ -n "$SERIALPORT" ] ; then
        chroot ${_mnt} /usr/local/bin/sqlite3 /data/freenas-v1.db "update system_advanced set adv_serialport = '$SERIALPORT'"
     fi
