@@ -305,7 +305,7 @@ save_serial_settings()
     # If the installer was booted with serial mode enabled, we should
     # save these values to the installed system
 
-    dmesg|grep "Kernel command line"|grep -q "console=ttyS")
+    dmesg|grep "Kernel command line"|grep -q "console=ttyS"
     USESERIAL=$?
     if [ "$USESERIAL" -ne 0 ] ; then return 0; fi
 
