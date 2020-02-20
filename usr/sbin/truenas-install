@@ -1032,11 +1032,11 @@ EOF
     mount --rbind /dev /tmp/data/dev
     mount --rbind /proc /tmp/data/proc
     mount --rbind /sys /tmp/data/sys
-    # Save current serial console settings into database.
-    save_serial_settings /tmp/data
     # Set default boot filesystem
     zpool set bootfs=freenas-boot/ROOT/${BENAME} freenas-boot
     install_loader /tmp/data ${_realdisks}
+    # Save current serial console settings into database.
+    save_serial_settings /tmp/data
     
 #    set +x
     if [ -d /tmp/data_preserved ]; then
