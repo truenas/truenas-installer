@@ -319,6 +319,7 @@ save_serial_settings()
        echo "serial --unit=$unit --speed=$SERIALSPEED --word=8 --parity=no --stop=1" > ${_mnt}/boot/grub/grub.cfg.new
        cat ${_mnt}/boot/grub/grub.cfg >> ${_mnt}/boot/grub/grub.cfg.new
        mv ${_mnt}/boot/grub/grub.cfg.new ${_mnt}/boot/grub/grub.cfg
+       sed -i -E "s/(linux.*root=.*)/\\1 console=ttyS0,$SERIALSPEED console=tty0/g" ${_mnt}/boot/grub/grub.cfg
     fi
     SERIALPORT=$(setserial -G /dev/$tty|gawk '{print $5}')
     if [ -n "$SERIALPORT" ] ; then
