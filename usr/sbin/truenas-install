@@ -970,16 +970,6 @@ menu_install()
     echo "deb http://apt.tn.ixsystems.com/truenas/unstable/ truenas main" \
 	    > /tmp/data/etc/apt/sources.list
 
-    # Enable DHCP via systemd for now
-    cat >/tmp/data/etc/systemd/network/dhcp.network <<EOF
-[Match]
-Name=en*
-
-[Network]
-DHCP=yes
-EOF
-    chroot /tmp/data systemctl enable systemd-networkd
-
     # Always import zfs pool
     cat >/tmp/data/etc/systemd/system/zfs-import-bootpool.service << EOF
 [Unit]
