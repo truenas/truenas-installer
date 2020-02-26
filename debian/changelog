@@ -1,4 +1,4 @@
-truenas-installer (1:1.0.4) bullseye-truenas-unstable; urgency=medium
+truenas-installer (1:1.0.6) bullseye-truenas-unstable; urgency=medium
 
   * Don't set systemd-netword service to enabled
 
