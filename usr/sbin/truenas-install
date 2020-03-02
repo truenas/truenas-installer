@@ -963,7 +963,7 @@ menu_install()
     echo "deb [trusted=yes check-date=no] file:///cdrom/ truenas main" \
 	    > /tmp/data/etc/apt/sources.list
     chroot /tmp/data apt update
-    chroot /tmp/data apt install -y truenas
+    chroot /tmp/data env DEBIAN_FRONTEND=noninteractive apt install -yq truenas
     umount /tmp/data/cdrom
 
     # Set remote APT source location
