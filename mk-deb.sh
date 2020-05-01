@@ -6,6 +6,6 @@ if [ -z "$1" ] ; then
 fi
 
 DATESTAMP=$(date +%Y%m%d%H%M)
-dch -M -v ${DATESTAMP}~truenas+1 --force-distribution --distribution bullseye-truenas-unstable "Auto Update from Jenkins CI"
+dch -b -M -v ${DATESTAMP}~truenas+1 --force-distribution --distribution bullseye-truenas-unstable "Auto Update from Jenkins CI"
 
-dpkg-buildpackage --sign-key=${1} -S -sba
+dpkg-buildpackage --sign-key=${1} -S -sa
