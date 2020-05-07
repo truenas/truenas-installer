@@ -6,6 +6,14 @@ Build-Depends: debhelper-compat (= 12)
 Standards-Version: 4.4.0
 
 Package: truenas-installer
+Package-Type: deb
+Architecture: all
+Section: debian-installer
+Depends: ${misc:Depends}, debootstrap
+Description: TrueNAS installation for Debian
+ This package provides the TrueNAS Debian installation scripts and tools.
+
+Package: truenas-installer-udeb
 Package-Type: udeb
 Architecture: all
 Section: debian-installer

@@ -8,4 +8,5 @@ fi
 DATESTAMP=$(date +%Y%m%d%H%M)
 dch -b -M -v ${DATESTAMP}~truenas+1 --force-distribution --distribution bullseye-truenas-unstable "Auto Update from Jenkins CI"
 
+echo "Signing package with dpkg-buildpackage"
 dpkg-buildpackage --sign-key=${1} -S -sa
