@@ -1,3 +1,9 @@
+truenas-installer (1:1.0.7) bullseye-truenas-unstable; urgency=medium
+
+  * Add debootstrap as a dependency
+
+ -- Waqar Ahmed <waqar@ixsystems.com>  Mon, 07 May 2020 17:00:40 +0500
+
 truenas-installer (1:1.0.6) bullseye-truenas-unstable; urgency=medium
 
   * Don't set systemd-netword service to enabled
