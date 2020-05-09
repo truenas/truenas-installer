@@ -410,8 +410,8 @@ partition_disks()
 
     # Erase both typical metadata area.
     for _disk in ${_disks}; do
-	sgdisk -Z ${_disk} >/dev/null 2>&1 || true
-	sgdisk -Z ${_disk} >/dev/null 2>&1 || true
+	sgdisk -Z /dev/${_disk} >/dev/null 2>&1 || true
+	sgdisk -Z /dev/${_disk} >/dev/null 2>&1 || true
 	#dd if=/dev/zero of=/dev/${_disk} bs=1M count=2 >/dev/null
 	#_size=$(diskinfo ${_disk} | cut -f 3)
 	#dd if=/dev/zero of=/dev/${_disk} bs=1M oseek=$((_size / MiB - 2)) >/dev/null || true
@@ -909,7 +909,7 @@ menu_install()
 	# Destroy existing partition table, if there is any but tolerate
 	# failure.
 	for _disk in ${_realdisks}; do
-	    sgdisk --zap-all ${_disk} || true
+	    sgdisk --zap-all /dev/${_disk} || true
 	done
     fi
 
@@ -948,27 +948,11 @@ menu_install()
         OS=TrueNAS
     fi
 
-    # Start the installation
-    if ! debootstrap --no-check-gpg \
-	    --include=busybox,grub-pc,grub-efi-amd64,shim-signed,zfs-modules-$(uname -r),zfsutils-linux,dosfstools,zfs-initramfs \
-	    truenas \
-	    /tmp/data file:///cdrom/; then
-	    echo "ERROR: Failed debootstrap truenas"
-    fi
-
-    # Do apt installation now
-    mkdir /tmp/data/cdrom
-    mount --rbind /cdrom /tmp/data/cdrom
-    # Set local APT source location
-    echo "deb [trusted=yes check-date=no] file:///cdrom/ truenas main" \
-	    > /tmp/data/etc/apt/sources.list
-    chroot /tmp/data apt update
-    chroot /tmp/data env DEBIAN_FRONTEND=noninteractive apt install -yq truenas
-    umount /tmp/data/cdrom
-
-    # Set remote APT source location
-    echo "deb http://apt.tn.ixsystems.com/truenas/unstable/ truenas main" \
-	    > /tmp/data/etc/apt/sources.list
+    # Extract our squashfs
+    umount /mnt || true
+    mount /cdrom/TrueNAS-SCALE.update /mnt -t squashfs -o loop
+    unsquashfs -f -d /tmp/data /mnt/rootfs.squashfs
+    umount /mnt
 
     # Always import zfs pool
     cat >/tmp/data/etc/systemd/system/zfs-import-bootpool.service << EOF
