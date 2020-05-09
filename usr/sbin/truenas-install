@@ -36,7 +36,7 @@ pre_install_check()
     # We need at least 8 GB of RAM
     # minus 1 GB to allow for reserved memory
     local minmem=$((7 * GiB))
-    local memsize=$(sysctl -n hw.physmem)
+    local memsize=$(cat /proc/meminfo | grep MemTotal | awk '{print $2}')
 
     if [ ${memsize} -lt ${minmem} ]; then
 	dialog --clear --title "${AVATAR_PROJECT}" --defaultno \
@@ -139,7 +139,7 @@ get_physical_disks_list()
 {
     local _disk
 
-    for _disk in $(ls /dev/sd* /dev/vd* /dev/hd* /dev/xvd* | grep -v '[0-9]' | sed 's|/dev/||g')
+    for _disk in $(ls /dev/sd* /dev/vd* /dev/hd* /dev/xvd* 2>/dev/null | grep -v '[0-9]' | sed 's|/dev/||g')
     do
 	VAL="${VAL} ${_disk}"
     done
