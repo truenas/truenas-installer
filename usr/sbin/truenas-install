@@ -955,24 +955,6 @@ menu_install()
     unsquashfs -f -d /tmp/data /mnt/rootfs.squashfs || true
     umount -f /mnt
 
-    # Always import zfs pool
-    cat >/tmp/data/etc/systemd/system/zfs-import-bootpool.service << EOF
-[Unit]
-DefaultDependencies=no
-Before=zfs-import-scan.service
-Before=zfs-import-cache.service
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=/sbin/zpool import -N -o cachefile=none freenas-boot || true
-
-[Install]
-WantedBy=zfs-import.target
-EOF
-    # Enable systemd service
-    chroot /tmp/data systemctl enable zfs-import-bootpool.service
-
     if [ "${_do_upgrade}" -ne 0 ]; then
 	#if [ -f /tmp/hostid ]; then
         #    cp -p /tmp/hostid /tmp/data/conf/base/etc
