@@ -312,8 +312,8 @@ save_serial_settings()
 
     chroot ${_mnt} sqlite3 /data/freenas-v1.db "update system_advanced set adv_serialconsole = 1"
 
-    tty=$(dmesg|grep -E "ttyS[0-9] at I/O"|head -1|gawk '{print $4}')
-    SERIALSPEED=$(setserial -G /dev/$tty|gawk '{print $9}')
+    tty=$(dmesg|grep -E "ttyS[0-9] at I/O"|head -1|awk '{print $4}')
+    SERIALSPEED=$(setserial -G /dev/$tty|awk '{print $9}')
     if [ -n "$SERIALSPEED" ] ; then
        chroot ${_mnt} sqlite3 /data/freenas-v1.db "update system_advanced set adv_serialspeed = $SERIALSPEED"
        unit=$(echo $tty|sed 's/[^0-9]//g')
@@ -322,7 +322,7 @@ save_serial_settings()
        mv ${_mnt}/boot/grub/grub.cfg.new ${_mnt}/boot/grub/grub.cfg
        sed -i -E "s/(linux.*root=.*)/\\1 console=ttyS0,$SERIALSPEED console=tty0/g" ${_mnt}/boot/grub/grub.cfg
     fi
-    SERIALPORT=$(setserial -G /dev/$tty|gawk '{print $5}')
+    SERIALPORT=$(setserial -G /dev/$tty|awk '{print $5}')
     if [ -n "$SERIALPORT" ] ; then
        chroot ${_mnt} sqlite3 /data/freenas-v1.db "update system_advanced set adv_serialport = '$SERIALPORT'"
     fi
@@ -558,7 +558,7 @@ disk_is_freenas()
 	# For GUI upgrades, we only have one OS partition
 	# that has conf/base/etc.  For ISO upgrades, we
 	# have two, but only one is active.
-	slice=$(gpart show ${_disk} | gawk '/\[active\]/ { print $3 }')
+	slice=$(gpart show ${_disk} | awk '/\[active\]/ { print $3 }')
 	if [ -z "${slice}" ]; then
 	    # We don't have an active slice, so something is wrong.
 	    return 1
@@ -881,7 +881,7 @@ menu_install()
 	    # For old style, we have two potential
 	    # partitions to look at:  s1a and s2a.
 	    # 
-	    slice=$(gpart show ${_disk} | gawk '/\[active\]/ { print $3 }')
+	    slice=$(gpart show ${_disk} | awk '/\[active\]/ { print $3 }')
 	    if [ -z "${slice}" ]; then
 		# We don't have an active slice, so something is wrong.
 		false
@@ -952,8 +952,8 @@ menu_install()
     # Extract our squashfs
     umount /mnt || true
     mount /cdrom/TrueNAS-SCALE.update /mnt -t squashfs -o loop
-    unsquashfs -f -d /tmp/data /mnt/rootfs.squashfs
-    umount /mnt
+    unsquashfs -f -d /tmp/data /mnt/rootfs.squashfs || true
+    umount -f /mnt
 
     # Always import zfs pool
     cat >/tmp/data/etc/systemd/system/zfs-import-bootpool.service << EOF
