@@ -962,33 +962,12 @@ menu_install()
 	if [ -d /tmp/.ssh ]; then
             cp -pR /tmp/.ssh /tmp/data/root/
 	fi
-	
-	# TODO: this needs to be revisited.
-	if [ -d /tmp/modules ]; then
-            for i in `ls /tmp/modules`
-            do
-		# If it already exists, simply don't copy it.
-		cp -np /tmp/modules/$i /tmp/data/boot/modules || true
-            done
-	fi
-	if [ -d /tmp/fusionio ]; then
-            cp -pR /tmp/fusionio /tmp/data/usr/local/
-	fi
-	if [ -f /tmp/boot.config ]; then
-	    cp /tmp/boot.config /tmp/data/
-	fi
-	if [ -f /tmp/loader.conf.local ]; then
-	    cp /tmp/loader.conf.local /tmp/data/boot/
-	    # TODO: #7042 - Don't use debug kernel
-	    sed -i '' -e 's,^module_path=.*,module_path="/boot/kernel;/boot/modules;/usr/local/modules",g' \
-		-e '/^kernel=.*/d' /tmp/data/boot/loader.conf /tmp/data/boot/loader.conf.local
-	fi
     fi
     
     # beadm will need a devfs
-    mount --rbind /dev /tmp/data/dev
-    mount --rbind /proc /tmp/data/proc
-    mount --rbind /sys /tmp/data/sys
+    mount --bind /dev /tmp/data/dev
+    mount --make-rslave proc /tmp/data/proc -t proc
+    mount --make-rslave sysfs /tmp/data/sys -t sysfs
     # Set default boot filesystem
     zpool set bootfs=freenas-boot/ROOT/${BENAME} freenas-boot
     install_loader /tmp/data ${_realdisks}
@@ -1020,11 +999,7 @@ menu_install()
         : > /tmp/data/${TRUENAS_EULA_PENDING_SENTINEL}
     fi
 
-    umount /tmp/data/dev/pts || true
-    umount /tmp/data/dev
-    umount /tmp/data/proc
-    umount /tmp/data/sys
-    umount /tmp/data/
+    umount -fR /tmp/data/
 
     # Export the pool now
     zpool export freenas-boot
