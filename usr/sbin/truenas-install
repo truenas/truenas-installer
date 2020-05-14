@@ -12,19 +12,15 @@ export TERM
 
 AVATAR_PROJECT="TrueNAS"
 
+# Boot Pool
+BOOT_POOL="boot-pool"
+NEW_BOOT_POOL="boot-pool"
 
 # Constants for base 10 and base 2 units
 : ${kB:=$((1000))}      ${kiB:=$((1024))};       readonly kB kiB
 : ${MB:=$((1000 * kB))} ${MiB:=$((1024 * kiB))}; readonly MB MiB
 : ${GB:=$((1000 * MB))} ${GiB:=$((1024 * MiB))}; readonly GB GiB
 : ${TB:=$((1000 * GB))} ${TiB:=$((1024 * GiB))}; readonly TB TiB
-
-is_truenas()
-{
-
-    test "$AVATAR_PROJECT" = "TrueNAS"
-    return $?
-}
 
 # The old pre-install checks did several things
 # 1:  Don't allow going from FreeNAS to TrueNAS or vice versa
@@ -213,7 +209,7 @@ EOD
     _msg=`cat "${_tmpfile}"`
     rm -f "${_tmpfile}"
     dialog --clear --title "$AVATAR_PROJECT ${_type}" --yesno "${_msg}" 13 74
-    [ $? -eq 0 ] || exit 1
+    [ $? -eq 0 ] || abort
 }
 
 ask_upgrade()
@@ -275,7 +271,7 @@ install_loader()
     _disks="$*"
 
     # Tell GRUB we are booting from ZFS
-    echo 'GRUB_CMDLINE_LINUX="root=ZFS=freenas-boot/ROOT/default"' >> ${_mnt}/etc/default/grub
+    echo "GRUB_CMDLINE_LINUX=\"root=ZFS=${BOOT_POOL}/ROOT/default\"" >> ${_mnt}/etc/default/grub
     mkdir -p ${_mnt}/boot/efi
     chroot ${_mnt} update-initramfs -c -k $(uname -r) -v
     chroot ${_mnt} update-grub
@@ -339,7 +335,7 @@ mount_disk()
 
 	_mnt="$1"
 	mkdir -p "${_mnt}"
-	mount -t zfs -o noatime freenas-boot/ROOT/${BENAME} ${_mnt}
+	mount -t zfs -o noatime ${BOOT_POOL}/ROOT/${BENAME} ${_mnt}
 	mkdir -p ${_mnt}/data
 	return 0
 }
@@ -404,8 +400,8 @@ partition_disks()
     local _size
 
     # Create and destroy existing pool (if exists)
-    zpool import -N -f freenas-boot || true
-    zpool destroy -f freenas-boot || true
+    zpool import -N -f ${BOOT_POOL} 2> /dev/null || true
+    zpool destroy -f ${BOOT_POOL} 2> /dev/null || true
 
     _disks=$*
 
@@ -436,6 +432,8 @@ partition_disks()
     else
 	_mirror=""
     fi
+    # Regardless of upgrade/fresh installation, if we are creating a new pool, it's going to be named after value of NEW_BOOT_POOL
+    BOOT_POOL=${NEW_BOOT_POOL}
     zpool create -f -o cachefile=/tmp/zpool.cache -o ashift=12 -d \
 		-o feature@async_destroy=enabled \
 		-o feature@bookmarks=enabled \
@@ -451,10 +449,10 @@ partition_disks()
 		-o feature@userobj_accounting=enabled \
 		-O acltype=posixacl -O canmount=off -O compression=lz4 -O devices=off -O mountpoint=none \
 		-O normalization=formD -O relatime=on -O xattr=sa \
-		freenas-boot ${_mirror} ${_disksparts}
-    zfs set compression=on freenas-boot
-    zfs create -o canmount=off freenas-boot/ROOT
-    zfs create -o mountpoint=legacy freenas-boot/ROOT/${BENAME}
+		${BOOT_POOL} ${_mirror} ${_disksparts}
+    zfs set compression=on ${BOOT_POOL}
+    zfs create -o canmount=off ${BOOT_POOL}/ROOT
+    zfs create -o mountpoint=legacy ${BOOT_POOL}/ROOT/${BENAME}
 
     return 0
 }
@@ -487,15 +485,20 @@ disk_is_freenas()
 	# This code is very clumsy.  There
 	# should be a way to structure it such that
 	# all of the cleanup happens as we want it to.
-	zdb -l ${os_part} | grep -qF "name: 'freenas-boot'" || return 1
-	zpool import -N -f freenas-boot || return 1
+	local disk_data=$(zdb -l ${os_part})
+	echo ${disk_data} | grep -qF "name: '${BOOT_POOL}'"
+	if [ $? -eq 1 ]; then
+	  echo ${disk_data} | grep -qF "name: 'freenas-boot'" || return 1
+	  BOOT_POOL="freenas-boot"
+	fi
+	zpool import -N -f ${BOOT_POOL} || return 1
 
 	# Now we want to figure out which dataset to use.
-	DS=$(zpool list -H -o bootfs freenas-boot | head -n 1 | cut -d '/' -f 3)
+	DS=$(zpool list -H -o bootfs ${BOOT_POOL} | head -n 1 | cut -d '/' -f 3)
 	if [ -z "$DS" ]; then
-	    zpool export freenas-boot || true
+	    zpool export ${BOOT_POOL} || true
 	    return 1
-	elif mount -t zfs freenas-boot/ROOT/"${DS}" /tmp/data_old; then
+	elif mount -t zfs ${BOOT_POOL}/ROOT/"${DS}" /tmp/data_old; then
 	    # If the active dataset doesn't have a database file,
 	    # then it's not FN as far as we're concerned (the upgrade code
 	    # will go badly).
@@ -503,7 +506,7 @@ disk_is_freenas()
 	    if [ ! -f /tmp/data_old/data/freenas-v1.db -o \
 		   -d /tmp/data_old/data/freenas.db ]; then
 		umount /tmp/data_old || true
-		zpool export freenas-boot || true
+		zpool export ${BOOT_POOL} || true
 		return 1
 	    fi
 	    cp -pR /tmp/data_old/data/. /tmp/data_preserved
@@ -533,7 +536,7 @@ disk_is_freenas()
 		cp /tmp/data_old/boot/loader.conf.local /tmp/
 	    fi
 	    umount /tmp/data_old || return 1
-	    zpool export freenas-boot || return 1
+	    zpool export ${BOOT_POOL} || return 1
 	    return 0
 	fi # elif mount ...
     fi # if [ "${upgrade_style}" = "new" ]
@@ -668,17 +671,41 @@ create_be()
 
   # When upgrading, we will simply create a new BE dataset and install
   # fresh into that, so old datasets are not lost
-  zpool import -N -f freenas-boot || return 1
+  zpool import -N -f ${BOOT_POOL} || return 1
 
   # Create the new BE
-  zfs create -o mountpoint=legacy freenas-boot/ROOT/${BENAME} || return 1
+  zfs create -o mountpoint=legacy ${BOOT_POOL}/ROOT/${BENAME} || return 1
 
   # Mount the new BE datasets
   mkdir -p ${1}
-  mount -t zfs freenas-boot/ROOT/${BENAME} ${1} || return 1
+  mount -t zfs ${BOOT_POOL}/ROOT/${BENAME} ${1} || return 1
   mkdir -p ${1}/data
 
   return 0
+}
+
+cleanup()
+{
+    zpool export -f ${BOOT_POOL}
+    zpool export -f ${NEW_BOOT_POOL}
+}
+
+abort()
+{
+    set +e +x
+    trap - EXIT
+    exit 1
+}
+
+fail()
+{
+    local _action=${1}
+    shift
+    local _disks=${@}
+
+    set +x
+    read -p "The ${AVATAR_PROJECT} ${_action} on ${_disks} has failed. Press enter to continue..." junk
+    abort
 }
 
 menu_install()
@@ -713,7 +740,7 @@ menu_install()
     # create a sentinel file for post-fresh-install boots
     local readonly FIRST_INSTALL_SENTINEL="/data/first-boot"
     local readonly TRUENAS_EULA_PENDING_SENTINEL="/data/truenas-eula-pending"
-    local readonly POOL="freenas-boot"
+    local readonly POOL=${BOOT_POOL}
 
     _tmpfile="/tmp/answer"
     TMPFILE=$_tmpfile
@@ -746,6 +773,9 @@ menu_install()
 	INTERACTIVE=true
     fi
 
+    # Make sure we are working from a clean slate.
+    cleanup 2>&1 >/dev/null
+
     if ${INTERACTIVE}; then
 	pre_install_check || return 0
     fi
@@ -773,13 +803,13 @@ menu_install()
 	if [ "${_items}" -eq 0 ]; then
 	    # Inform the user
 	    eval "dialog --title 'Choose destination media' --msgbox 'No drives available' 5 60" 2>${_tmpfile}
-	    return 0
+	    abort
 	fi
 
 	eval "dialog --title 'Choose destination media' \
 		--checklist 'Select one or more drives where $AVATAR_PROJECT should be installed (use arrow keys to navigate to the drive(s) for installation; select a drive with the spacebar).' \
 		${_menuheight} 60 ${_items} ${_list}" 2>${_tmpfile}
-	[ $? -eq 0 ] || exit 1
+	[ $? -eq 0 ] || abort
     fi
 
     if [ -f "${_tmpfile}" ]; then
@@ -789,12 +819,12 @@ menu_install()
 
     if [ -z "${_disks}" ]; then
 	${INTERACTIVE} && dialog --msgbox "You need to select at least one disk!" 6 74
-	exit 1
+	abort
     fi
 
     if disk_is_mounted ${_disks} ; then
         ${INTERACTIVE} && dialog --msgbox "The destination drive is already in use!" 6 74
-        exit 1
+        abort
     fi
 
     _action="installation"
@@ -863,12 +893,7 @@ menu_install()
 	rm -rf /tmp/data_preserved
     fi
     # Start critical section.
-    if ${INTERACTIVE}; then
-	trap "set +x; read -p \"The $AVATAR_PROJECT $_action on ${_realdisks} has failed. Press enter to continue.. \" junk" EXIT
-    else
-#	trap "echo \"The ${AVATAR_PROJECT} ${_action} on ${_realdisks} has failed.\" ; sleep 15" EXIT
-	trap "set +x; read -p \"The $AVATAR_PROJECT $_action on ${_realdisks} has failed. Press enter to continue.. \" junk" EXIT
-    fi
+    trap "fail ${_action} ${_realdisks}" EXIT
     set -e
 #    set -x
 
@@ -944,10 +969,7 @@ menu_install()
 	chown www:www /tmp/data/data/factory-v1.db
     fi
 
-    local OS=FreeNAS
-    if is_truenas; then
-        OS=TrueNAS
-    fi
+    local OS=TrueNAS
 
     # Extract our squashfs
     umount /mnt || true
@@ -969,7 +991,7 @@ menu_install()
     mount --make-rslave proc /tmp/data/proc -t proc
     mount --make-rslave sysfs /tmp/data/sys -t sysfs
     # Set default boot filesystem
-    zpool set bootfs=freenas-boot/ROOT/${BENAME} freenas-boot
+    zpool set bootfs=${BOOT_POOL}/ROOT/${BENAME} ${BOOT_POOL}
     install_loader /tmp/data ${_realdisks}
     # Save current serial console settings into database.
     save_serial_settings /tmp/data
@@ -995,14 +1017,14 @@ menu_install()
 	fi
     fi
     : > /tmp/data/${FIRST_INSTALL_SENTINEL}
-    if is_truenas && [ "${_do_upgrade}" -eq 0 ]; then
+    if [ "${_do_upgrade}" -eq 0 ]; then
         : > /tmp/data/${TRUENAS_EULA_PENDING_SENTINEL}
     fi
 
     umount -fR /tmp/data/
 
     # Export the pool now
-    zpool export freenas-boot
+    zpool export ${BOOT_POOL}
     # End critical section.
     set +e
 
@@ -1066,6 +1088,8 @@ main()
             3) menu_reboot ;;
             4) menu_shutdown ;;
         esac
+        # Unset cached setting
+        unset SWAP_IS_SAFE
     done
 }
 
