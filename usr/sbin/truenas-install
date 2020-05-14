@@ -13,7 +13,8 @@ export TERM
 AVATAR_PROJECT="TrueNAS"
 
 # Boot Pool
-readonly BOOT_POOL="boot-pool"
+BOOT_POOL="boot-pool"
+NEW_BOOT_POOL="boot-pool"
 
 # Constants for base 10 and base 2 units
 : ${kB:=$((1000))}      ${kiB:=$((1024))};       readonly kB kiB
@@ -431,6 +432,8 @@ partition_disks()
     else
 	_mirror=""
     fi
+    # Regardless of upgrade/fresh installation, if we are creating a new pool, it's going to be named after value of NEW_BOOT_POOL
+    BOOT_POOL=${NEW_BOOT_POOL}
     zpool create -f -o cachefile=/tmp/zpool.cache -o ashift=12 -d \
 		-o feature@async_destroy=enabled \
 		-o feature@bookmarks=enabled \
@@ -482,7 +485,12 @@ disk_is_freenas()
 	# This code is very clumsy.  There
 	# should be a way to structure it such that
 	# all of the cleanup happens as we want it to.
-	zdb -l ${os_part} | grep -qF "name: '${BOOT_POOL}'" || return 1
+	local disk_data=$(zdb -l ${os_part})
+	echo ${disk_data} | grep -qF "name: '${BOOT_POOL}'"
+	if [ $? -eq 1 ]; then
+	  echo ${disk_data} | grep -qF "name: 'freenas-boot'" || return 1
+	  BOOT_POOL="freenas-boot"
+	fi
 	zpool import -N -f ${BOOT_POOL} || return 1
 
 	# Now we want to figure out which dataset to use.
