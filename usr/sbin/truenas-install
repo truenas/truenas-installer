@@ -400,8 +400,8 @@ partition_disks()
     local _size
 
     # Create and destroy existing pool (if exists)
-    zpool import -N -f ${BOOT_POOL} || true
-    zpool destroy -f ${BOOT_POOL} || true
+    zpool import -N -f ${BOOT_POOL} 2> /dev/null || true
+    zpool destroy -f ${BOOT_POOL} 2> /dev/null || true
 
     _disks=$*
 
