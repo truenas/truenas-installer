@@ -19,13 +19,6 @@ AVATAR_PROJECT="TrueNAS"
 : ${GB:=$((1000 * MB))} ${GiB:=$((1024 * MiB))}; readonly GB GiB
 : ${TB:=$((1000 * GB))} ${TiB:=$((1024 * GiB))}; readonly TB TiB
 
-is_truenas()
-{
-
-    test "$AVATAR_PROJECT" = "TrueNAS"
-    return $?
-}
-
 # The old pre-install checks did several things
 # 1:  Don't allow going from FreeNAS to TrueNAS or vice versa
 # 2:  Don't allow downgrading.  (Not sure we can do that now.)
@@ -944,10 +937,7 @@ menu_install()
 	chown www:www /tmp/data/data/factory-v1.db
     fi
 
-    local OS=FreeNAS
-    if is_truenas; then
-        OS=TrueNAS
-    fi
+    local OS=TrueNAS
 
     # Extract our squashfs
     umount /mnt || true
@@ -995,7 +985,7 @@ menu_install()
 	fi
     fi
     : > /tmp/data/${FIRST_INSTALL_SENTINEL}
-    if is_truenas && [ "${_do_upgrade}" -eq 0 ]; then
+    if [ "${_do_upgrade}" -eq 0 ]; then
         : > /tmp/data/${TRUENAS_EULA_PENDING_SENTINEL}
     fi
 
