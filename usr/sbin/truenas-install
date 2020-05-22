@@ -306,38 +306,18 @@ save_serial_settings()
     USESERIAL=$?
     if [ "$USESERIAL" -ne 0 ] ; then return 0; fi
 
-    chroot ${_mnt} sqlite3 /data/freenas-v1.db "update system_advanced set adv_serialconsole = 1"
+    echo "update system_advanced set adv_serialconsole = 1;"
 
     tty=$(dmesg|grep -E "ttyS[0-9] at I/O"|head -1|awk '{print $4}')
     SERIALSPEED=$(setserial -G /dev/$tty|awk '{print $9}')
     if [ -n "$SERIALSPEED" ] ; then
-       chroot ${_mnt} sqlite3 /data/freenas-v1.db "update system_advanced set adv_serialspeed = $SERIALSPEED"
-       unit=$(echo $tty|sed 's/[^0-9]//g')
-       echo "serial --unit=$unit --speed=$SERIALSPEED --word=8 --parity=no --stop=1" > ${_mnt}/boot/grub/grub.cfg.new
-       cat ${_mnt}/boot/grub/grub.cfg >> ${_mnt}/boot/grub/grub.cfg.new
-       mv ${_mnt}/boot/grub/grub.cfg.new ${_mnt}/boot/grub/grub.cfg
-       sed -i -E "s/(linux.*root=.*)/\\1 console=ttyS0,$SERIALSPEED console=tty0/g" ${_mnt}/boot/grub/grub.cfg
+       echo "update system_advanced set adv_serialspeed = $SERIALSPEED;"
     fi
     SERIALPORT=$(setserial -G /dev/$tty|awk '{print $5}')
     if [ -n "$SERIALPORT" ] ; then
-       chroot ${_mnt} sqlite3 /data/freenas-v1.db "update system_advanced set adv_serialport = '$SERIALPORT'"
+       echo "update system_advanced set adv_serialport = '$SERIALPORT';"
     fi
 
-}
-
-mount_disk()
-{
-	local _mnt
-
-	if [ $# -ne 1 ]; then
-		return 1
-	fi
-
-	_mnt="$1"
-	mkdir -p "${_mnt}"
-	mount -t zfs -o noatime ${BOOT_POOL}/ROOT/${BENAME} ${_mnt}
-	mkdir -p ${_mnt}/data
-	return 0
 }
 
 create_partitions()
@@ -452,7 +432,6 @@ partition_disks()
 		${BOOT_POOL} ${_mirror} ${_disksparts}
     zfs set compression=on ${BOOT_POOL}
     zfs create -o canmount=off ${BOOT_POOL}/ROOT
-    zfs create -o mountpoint=legacy ${BOOT_POOL}/ROOT/${BENAME}
 
     return 0
 }
@@ -659,29 +638,6 @@ __EOF__
 
     echo -n "${password}" 1>&2
 
-}
-
-create_be()
-{
-  if [ $# -ne 1 ]; then
-    return 1
-  fi
-
-  echo "Creating new Boot-Environment"
-
-  # When upgrading, we will simply create a new BE dataset and install
-  # fresh into that, so old datasets are not lost
-  zpool import -N -f ${BOOT_POOL} || return 1
-
-  # Create the new BE
-  zfs create -o mountpoint=legacy ${BOOT_POOL}/ROOT/${BENAME} || return 1
-
-  # Mount the new BE datasets
-  mkdir -p ${1}
-  mount -t zfs ${BOOT_POOL}/ROOT/${BENAME} ${1} || return 1
-  mkdir -p ${1}/data
-
-  return 0
 }
 
 cleanup()
@@ -941,25 +897,17 @@ menu_install()
 
     if [ ${_do_upgrade} -eq 1 -a ${upgrade_style} = "new" -a "${_upgrade_type}" = "inplace" ]
     then
-      # Set the boot-environment name
-      BENAME="default-`date +%Y%m%d-%H%M%S`"
-      export BENAME
-
       # When doing new-style upgrades, we can keep the old zpool
       # and instead do a new BE creation
-      create_be /tmp/data
+      zpool import -N -f ${BOOT_POOL}
     else
-      # Set the boot-environment name
-      BENAME="default"
-      export BENAME
-
       # We repartition on fresh install, or old upgrade_style
       # This destroys all of the pool data, and
       # ensures a clean filesystems.
       partition_disks ${_realdisks}
-      mount_disk /tmp/data
     fi
 
+    # TODO: Bring this back
     if [ -d /tmp/data_preserved ]; then
 	cp -pR /tmp/data_preserved/. /tmp/data/data
 	# we still need the newer version we are upgrading to's
@@ -971,57 +919,36 @@ menu_install()
 
     local OS=TrueNAS
 
-    # Extract our squashfs
+    # Mount update image
     umount /mnt || true
     mount /cdrom/TrueNAS-SCALE.update /mnt -t squashfs -o loop
-    unsquashfs -f -d /tmp/data /mnt/rootfs.squashfs || true
-    umount -f /mnt
 
+    local sql="$(save_serial_settings | tr '\n' ' ')"
+    local json="{\"disks\": [], \"pool_name\": \"${BOOT_POOL}\", \"sql\": \"${sql}\", \"src\": \"/mnt\"}"
+    for _disk in ${_realdisks}; do
+        json="$(echo "$json" | jq --arg v "${_disk}" '.disks += [$v]' -)"
+    done
+    if [ "${_do_upgrade}" -eq 0 ]; then
+	if [ -n "${_password}" ]; then
+              json="$(echo "$json" | jq --arg v "${_password}" '.password = $v' -)"
+	fi
+    fi
+
+    (cd /mnt && echo "$json" | python3 -m truenas_install)
+
+    # TODO: Bring this back
     if [ "${_do_upgrade}" -ne 0 ]; then
-	#if [ -f /tmp/hostid ]; then
-        #    cp -p /tmp/hostid /tmp/data/conf/base/etc
-	#fi
 	if [ -d /tmp/.ssh ]; then
             cp -pR /tmp/.ssh /tmp/data/root/
 	fi
     fi
-    
-    # beadm will need a devfs
-    mount --bind /dev /tmp/data/dev
-    mount --make-rslave proc /tmp/data/proc -t proc
-    mount --make-rslave sysfs /tmp/data/sys -t sysfs
-    # Set default boot filesystem
-    zpool set bootfs=${BOOT_POOL}/ROOT/${BENAME} ${BOOT_POOL}
-    install_loader /tmp/data ${_realdisks}
-    # Save current serial console settings into database.
-    save_serial_settings /tmp/data
-    
-#    set +x
+
     if [ -d /tmp/data_preserved ]; then
-	# Instead of sentinel files, let's just migrate!
-	# Unfortunately, this doesn't seem to work well.
-	# This should be investigated.
-#	chroot /tmp/data /bin/sh -c "/usr/bin/yes | \
-#		/usr/local/bin/python
-#		      /usr/local/www/freenasUI/manage.py migrate --all --merge"
-	# Create upgrade sentinel files
-	: > /tmp/data/${CD_UPGRADE_SENTINEL}
-	: > /tmp/data/${NEED_UPDATE_SENTINEL}
 	${INTERACTIVE} && dialog --msgbox "The installer has preserved your database file.
 #$AVATAR_PROJECT will migrate this file, if necessary, to the current format." 6 74
-    elif [ "${_do_upgrade}" -eq 0 ]; then
-	if [ -n "${_password}" ]; then
-		# Set the root password
-		chroot /tmp/data echo "root:${_password}" | chroot /tmp/data chpasswd
-		chroot /tmp/data /etc/netcli reset_root_pw "${_password}"
-	fi
-    fi
-    : > /tmp/data/${FIRST_INSTALL_SENTINEL}
-    if [ "${_do_upgrade}" -eq 0 ]; then
-        : > /tmp/data/${TRUENAS_EULA_PENDING_SENTINEL}
     fi
 
-    umount -fR /tmp/data/
+    umount -f /mnt
 
     # Export the pool now
     zpool export ${BOOT_POOL}
