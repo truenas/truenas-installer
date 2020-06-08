@@ -432,6 +432,7 @@ partition_disks()
 		${BOOT_POOL} ${_mirror} ${_disksparts}
     zfs set compression=on ${BOOT_POOL}
     zfs create -o canmount=off ${BOOT_POOL}/ROOT
+    zfs create -o canmount=off -o mountpoint=legacy ${BOOT_POOL}/grub
 
     return 0
 }
