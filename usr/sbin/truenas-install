@@ -416,8 +416,13 @@ partition_disks()
 
     _disksparts=$(for _disk in ${_disks}; do
 	create_partitions ${_disk} >&2
+    # Check if nvme or non-nvme disk.
+    if [[ "${_disk}" == *"nvme"* ]]; then
 	echo /dev/${_disk}p3
-    done)
+    else
+    echo /dev/${_disk}3
+    fi
+done)
 
     if [ $# -gt 1 ]; then
 	_mirror="mirror"
