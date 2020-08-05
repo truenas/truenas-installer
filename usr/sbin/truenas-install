@@ -136,6 +136,7 @@ get_physical_disks_list()
 {
     local _disk
 
+    VAL=""
     for _disk in $(ls /dev/sd* /dev/vd* /dev/hd* /dev/xvd* /dev/nvme* 2>/dev/null | grep -v '[0-9]' | sed 's|/dev/||g')
     do
 	VAL="${VAL} ${_disk}"
@@ -191,7 +192,7 @@ new_install_verify()
 WARNING:
 EOD
 
-    if [ "$_type" = "upgrade" -a "$_upgradetype" = "inplace" ] ; then
+    if [ "$_upgradetype" = "inplace" ] ; then
       echo "- This will install into existing zpool on ${_disks}." >> ${_tmpfile}
     else
       echo "- This will erase ALL partitions and data on ${_disks}." >> ${_tmpfile}
@@ -665,6 +666,11 @@ fail()
     abort
 }
 
+doing_upgrade()
+{
+    test -d /tmp/data_preserved
+}
+
 menu_install()
 {
     local _action
@@ -731,7 +737,7 @@ menu_install()
     fi
 
     # Make sure we are working from a clean slate.
-    cleanup 2>&1 >/dev/null
+    cleanup >/dev/null 2>&1
 
     if ${INTERACTIVE}; then
 	pre_install_check || return 0
@@ -856,7 +862,7 @@ menu_install()
 
     #  _disk, _image, _config_file
 
-    if [ ${_do_upgrade} -eq 1 ]
+    if [ "${_upgrade_type}" = "inplace" ]
     then
         mkdir -p /tmp/data
 	if [ "${upgrade_style}" = "old" ]; then
@@ -896,7 +902,7 @@ menu_install()
 	done
     fi
 
-    if [ ${_do_upgrade} -eq 1 -a ${upgrade_style} = "new" -a "${_upgrade_type}" = "inplace" ]
+    if [ "${_upgrade_type}" = "inplace" ]
     then
       # When doing new-style upgrades, we can keep the old zpool
       # and instead do a new BE creation
@@ -909,7 +915,7 @@ menu_install()
     fi
 
     # TODO: Bring this back
-    if [ -d /tmp/data_preserved ]; then
+    if doing_upgrade; then
 	cp -pR /tmp/data_preserved/. /tmp/data/data
 	# we still need the newer version we are upgrading to's
 	# factory-v1.db, else issuing a factory-restore on the
@@ -929,7 +935,7 @@ menu_install()
     for _disk in ${_realdisks}; do
         json="$(echo "$json" | jq --arg v "${_disk}" '.disks += [$v]' -)"
     done
-    if [ "${_do_upgrade}" -eq 0 ]; then
+    if ! doing_upgrade; then
 	if [ -n "${_password}" ]; then
               json="$(echo "$json" | jq --arg v "${_password}" '.password = $v' -)"
 	fi
@@ -938,13 +944,10 @@ menu_install()
     (cd /mnt && echo "$json" | python3 -m truenas_install)
 
     # TODO: Bring this back
-    if [ "${_do_upgrade}" -ne 0 ]; then
+    if doing_upgrade; then
 	if [ -d /tmp/.ssh ]; then
             cp -pR /tmp/.ssh /tmp/data/root/
 	fi
-    fi
-
-    if [ -d /tmp/data_preserved ]; then
 	${INTERACTIVE} && dialog --msgbox "The installer has preserved your database file.
 #$AVATAR_PROJECT will migrate this file, if necessary, to the current format." 6 74
     fi
