@@ -271,6 +271,7 @@ install_loader()
 {
     local _disk _disks
     local _mnt
+    local _partition
 
     _mnt="$1"
     shift
@@ -290,10 +291,14 @@ install_loader()
 	    echo "Stamping EFI loader on: ${_disk}"
         # Check if nvme disk and use different naming convention.
         if [[ "${_disk}" == *"nvme"* ]]; then
-	    chroot ${_mnt} mkdosfs -F 32 -s 1 -n EFI /dev/${_disk}p2
+            _partition="${_disk}p3"
+        else
+            _partition="${_disk}3"
+        fi
+	    chroot ${_mnt} mkdosfs -F 32 -s 1 -n EFI /dev/${_partition}
 	    chroot ${_mnt} mount -t vfat /dev/${_disk}p2 /boot/efi
         else
-        chroot ${_mnt} mkdosfs -F 32 -s 1 -n EFI /dev/${_disk}2
+        chroot ${_mnt} mkdosfs -F 32 -s 1 -n EFI /dev/${_partition}
 	    chroot ${_mnt} mount -t vfat /dev/${_disk}2 /boot/efi
         fi
 	    chroot ${_mnt} grub-install --target=x86_64-efi \
@@ -390,6 +395,7 @@ partition_disks()
     local _mirror
     local _minsize
     local _size
+    local _partition
 
     # Create and destroy existing pool (if exists)
     zpool import -N -f ${BOOT_POOL} 2> /dev/null || true
@@ -417,13 +423,12 @@ partition_disks()
     _disksparts=$(for _disk in ${_disks}; do
 	create_partitions ${_disk} >&2
     # Check if nvme or non-nvme disk.
-
-    if test "${_disk#*nvme}" != "$_disk"
-    then
-        echo "/dev/${_disk}p3"
+    if [[ "${_disk}" == *"nvme"* ]]; then
+        _partition="${_disk}p3"
     else
-        echo "/dev/${_disk}3"
+        _partition="${_disk}3"
     fi
+    echo "/dev/${_partition}"
 done)
 
     if [ $# -gt 1 ]; then
