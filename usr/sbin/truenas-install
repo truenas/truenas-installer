@@ -135,8 +135,14 @@ get_raid_present()
 get_physical_disks_list()
 {
     local _disk
+    local _nvmedisk
 
     VAL=""
+
+    for _nvmedisk in $(ls /dev/nvme* | grep -oP '(?<=/dev/nvme).*.n.(?!p)' | sort -t: -u | sed 's/^/nvme/'); do
+        VAL="${VAL} ${_nvmedisk}"
+    done
+
     for _disk in $(ls /dev/sd* /dev/vd* /dev/hd* /dev/xvd* /dev/nvme* 2>/dev/null | grep -v '[0-9]' | sed 's|/dev/||g')
     do
 	VAL="${VAL} ${_disk}"
@@ -144,6 +150,16 @@ get_physical_disks_list()
 
     VAL=`echo $VAL | tr ' ' '\n'| grep -v '^cd'`
     export VAL
+}
+
+get_partition()
+{
+    check=$(echo "$1" | sed -n "/nvme/p")
+    if [ -n "$check" ]; then
+        echo "$1p$2"
+    else
+        echo "$1$2"
+    fi
 }
 
 get_media_description()
@@ -265,7 +281,7 @@ EOD
 install_loader()
 {
     local _disk _disks
-    local _mnt
+    local _mnt partition_disk
 
     _mnt="$1"
     shift
@@ -282,9 +298,10 @@ install_loader()
 	    echo "Stamping GPT loader on: /dev/${_disk}"
 	    chroot ${_mnt} grub-install --target=i386-pc /dev/${_disk}
 
+	    partition_disk=$(get_partition $_disk 2)
 	    echo "Stamping EFI loader on: ${_disk}"
-	    chroot ${_mnt} mkdosfs -F 32 -s 1 -n EFI /dev/${_disk}2
-	    chroot ${_mnt} mount -t vfat /dev/${_disk}2 /boot/efi
+	    chroot ${_mnt} mkdosfs -F 32 -s 1 -n EFI /dev/${partition_disk}
+	    chroot ${_mnt} mount -t vfat /dev/${partition_disk} /boot/efi
 	    chroot ${_mnt} grub-install --target=x86_64-efi \
 		    --efi-directory=/boot/efi \
 		    --bootloader-id=debian --recheck --no-floppy
@@ -405,7 +422,7 @@ partition_disks()
 
     _disksparts=$(for _disk in ${_disks}; do
 	create_partitions ${_disk} >&2
-	echo /dev/${_disk}3
+	echo /dev/$(get_partition ${_disk} 3)
     done)
 
     if [ $# -gt 1 ]; then
