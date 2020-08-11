@@ -154,8 +154,8 @@ get_physical_disks_list()
 
 get_partition()
 {
-    echo "$1" | grep -q "nvme"
-    if [ $? -eq 0 ]; then
+    check=$(echo "$1" | sed -n "/nvme/p")
+    if [ -n "$check" ]; then
         echo "$1p$2"
     else
         echo "$1$2"
