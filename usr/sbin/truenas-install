@@ -1021,6 +1021,8 @@ main()
 	exit $?
     fi
 
+    [ -f /etc/hostid ] || zgenhostid
+
     while :; do
 
         dialog --clear --title "$AVATAR_PROJECT $AVATAR_VERSION Console Setup" --menu "" 12 73 6 \
