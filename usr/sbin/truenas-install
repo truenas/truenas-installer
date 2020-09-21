@@ -863,6 +863,9 @@ menu_install()
 	prompt_password 2> /tmp/password
 	if [ $? -eq 0 ]; then
 	    _password="$(cat /tmp/password 2> /dev/null)"
+	else
+	    echo "Installation cancelled"
+	    exit 1
 	fi
     fi
 
