@@ -1021,7 +1021,9 @@ main()
 	exit $?
     fi
 
+    # Keep ZFS happy
     [ -f /etc/hostid ] || zgenhostid
+    modprobe zfs
 
     while :; do
 
