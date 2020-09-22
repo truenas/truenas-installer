@@ -624,15 +624,17 @@ __EOF__
 
     while true; do
 	dialog --insecure \
+	    --extra-button --extra-label "Do not set password" \
 	    --output-fd 3 \
 	    --visit-items \
-	    --passwordform "Enter your root password; cancel for no root password" \
-	    10 50 0 \
-	    "Password:" 1 1 "" 0 20 25 50 \
-	    "Confirm Password:" 2 1 "" 2 20 25 50 \
+	    --passwordform "Enter your root password; cancel for cancelling installation" \
+	    10 70 0 \
+	    "Password:" 1 10 "" 0 30 25 50 \
+	    "Confirm Password:" 2 10 "" 2 30 25 50 \
 	    3> ${_tmpfile}
 
-	if [ $? -ne 0 ]; then
+	ret=$?
+	if [ $ret -eq 1 ]; then
 	    rm -f ${_tmpfile}
 	    return 1
 	fi
@@ -640,7 +642,10 @@ __EOF__
 	{ read password1 ; read password2; } < ${_tmpfile}
 	rm -f ${_tmpfile}
 
-	if [ "${password1}" != "${password2}" ]; then
+	if [ $ret -eq 3 ]; then
+	    password=""
+	    break
+	elif [ "${password1}" != "${password2}" ]; then
 	    dialog --msgbox "Passwords do not match." 7 60 2> /dev/null
 	elif [ -z "${password1}" ]; then
 	    dialog --msgbox "Empty password is not secure" 7 60 2> /dev/null
@@ -863,6 +868,9 @@ menu_install()
 	prompt_password 2> /tmp/password
 	if [ $? -eq 0 ]; then
 	    _password="$(cat /tmp/password 2> /dev/null)"
+	else
+	    echo "Installation cancelled"
+	    exit 1
 	fi
     fi
 
