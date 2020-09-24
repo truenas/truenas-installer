@@ -12,6 +12,10 @@ export TERM
 
 AVATAR_PROJECT="TrueNAS"
 
+if [ -e "/etc/version" ]; then
+	AVATAR_VERSION=$(cat /etc/version)
+fi
+
 # Boot Pool
 BOOT_POOL="boot-pool"
 NEW_BOOT_POOL="boot-pool"
