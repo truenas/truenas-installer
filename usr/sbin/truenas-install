@@ -141,12 +141,16 @@ get_physical_disks_list()
     local _disk
     local _detected="PLACEHOLDER_FOR_CONCAT"
 
-    for _disk in $(ls /dev/sd* /dev/vd* /dev/hd* /dev/xvd* /dev/nvme* /dev/mmc* 2>/dev/null | sed 's|/dev/||g')
+    for _disk in $(ls /sys/block/)
     do
-        if ! echo $_disk | grep -E -q ${_detected} 2>/dev/null; then
+        # no loopback, scsi/sata read-only or tape devices
+        if echo $_disk | grep -q -E "^loop|^sr|^st"; then
+            continue
+        fi
+        if ! echo $_disk | grep -E -q ${_detected}; then
             _detected="${_detected}|${_disk}"
             echo $_disk
-	fi
+        fi
     done
 }
 
