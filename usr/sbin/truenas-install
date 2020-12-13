@@ -139,18 +139,15 @@ get_raid_present()
 get_physical_disks_list()
 {
     local _disk
-
-    VAL=""
+    local _detected=""
 
     for _disk in $(ls /dev/sd* /dev/vd* /dev/hd* /dev/xvd* /dev/nvme* /dev/mmc* 2>/dev/null | sed 's|/dev/||g')
     do
-        if ! echo $_disk | grep -E -q $(echo $VAL | tr ' ' '|') 2>/dev/null; then
-            VAL="${VAL} ${_disk}"
+        if ! echo $_disk | grep -E -q $(echo $_detected | tr ' ' '|') 2>/dev/null; then
+            _detected="${_detected} ${_disk}"
+            echo $_disk
 	fi
     done
-
-    VAL=`echo $VAL | tr ' ' '\n'`
-    export VAL
 }
 
 get_partition()
@@ -767,12 +764,9 @@ menu_install()
     fi
     
     if ${INTERACTIVE}; then
-	get_physical_disks_list
-	_disklist="${VAL}"
-
 	_list=""
 	_items=0
-	for _disk in ${_disklist}; do
+	for _disk in $(get_physical_disks_list); do
 	    _desc=$(get_media_description "${_disk}" | sed "s/'/'\\\''/g")
 	    _list="${_list} ${_disk} '${_desc}' off"
 	    _items=$((${_items} + 1))
