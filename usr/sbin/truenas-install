@@ -142,7 +142,7 @@ get_physical_disks_list()
 
     VAL=""
 
-    for _disk in $(ls /dev/sd* /dev/vd* /dev/hd* /dev/xvd* /dev/nvme* 2>/dev/null | sed 's|/dev/||g')
+    for _disk in $(ls /dev/sd* /dev/vd* /dev/hd* /dev/xvd* /dev/nvme* /dev/mmc* 2>/dev/null | sed 's|/dev/||g')
     do
         if ! echo $_disk | grep -E -q $(echo $VAL | tr ' ' '|'); then
             VAL="${VAL} ${_disk}"
