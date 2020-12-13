@@ -140,12 +140,7 @@ get_physical_disks_list()
 
 get_partition()
 {
-    check=$(echo "$1" | sed -n "/nvme/p")
-    if [ -n "$check" ]; then
-        echo "$1p$2"
-    else
-        echo "$1$2"
-    fi
+    ls /dev/$1$2 /dev/$1p$2 2>/dev/null | sed 's|/dev/||g'
 }
 
 get_media_description()
