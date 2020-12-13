@@ -120,22 +120,6 @@ is_swap_safe()
     esac
 }
 
-# return 0 if no raid devices, or !0 if there are some.
-get_raid_present()
-{
-	local _cnt
-	local _dummy
-
-	if [ ! -d "/dev/raid" ] ; then
-		return 0;
-	fi
-
-	_cnt=0
-	ls /dev/raid/ > /tmp/raidfiles
-	while read _dummy ; do _cnt=$(($_cnt + 1));done < /tmp/raidfiles
-	return $_cnt
-}
-
 get_physical_disks_list()
 {
     local _disk
