@@ -149,7 +149,7 @@ get_physical_disks_list()
 	fi
     done
 
-    VAL=`echo $VAL | tr ' ' '\n'| grep -v '^cd'`
+    VAL=`echo $VAL | tr ' ' '\n'`
     export VAL
 }
 
