@@ -140,7 +140,12 @@ get_physical_disks_list()
 
 get_partition()
 {
-    ls /dev/$1$2 /dev/$1p$2 2>/dev/null | sed 's|/dev/||g'
+    local _partition=$(ls /dev/$1$2 /dev/$1p$2 2>/dev/null)
+    if [ -z $_partition ]; then
+        echo CANT_FIND_$1$2_OR_$1p$2
+    else
+        echo $_partition
+    fi
 }
 
 get_media_description()
@@ -281,8 +286,8 @@ install_loader()
 
 	    partition_disk=$(get_partition $_disk 2)
 	    echo "Stamping EFI loader on: ${_disk}"
-	    chroot ${_mnt} mkdosfs -F 32 -s 1 -n EFI /dev/${partition_disk}
-	    chroot ${_mnt} mount -t vfat /dev/${partition_disk} /boot/efi
+	    chroot ${_mnt} mkdosfs -F 32 -s 1 -n EFI ${partition_disk}
+	    chroot ${_mnt} mount -t vfat ${partition_disk} /boot/efi
 	    chroot ${_mnt} grub-install --target=x86_64-efi \
 		    --efi-directory=/boot/efi \
 		    --bootloader-id=debian --recheck --no-floppy
@@ -403,7 +408,7 @@ partition_disks()
 
     _disksparts=$(for _disk in ${_disks}; do
 	create_partitions ${_disk} >&2
-	echo /dev/$(get_partition ${_disk} 3)
+	echo $(get_partition ${_disk} 3)
     done)
 
     if [ $# -gt 1 ]; then
