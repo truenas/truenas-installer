@@ -120,49 +120,33 @@ is_swap_safe()
     esac
 }
 
-# return 0 if no raid devices, or !0 if there are some.
-get_raid_present()
-{
-	local _cnt
-	local _dummy
-
-	if [ ! -d "/dev/raid" ] ; then
-		return 0;
-	fi
-
-	_cnt=0
-	ls /dev/raid/ > /tmp/raidfiles
-	while read _dummy ; do _cnt=$(($_cnt + 1));done < /tmp/raidfiles
-	return $_cnt
-}
-
 get_physical_disks_list()
 {
     local _disk
-    local _nvmedisk
+    local _detected="PLACEHOLDER_FOR_CONCAT"
 
-    VAL=""
-
-    for _nvmedisk in $(ls /dev/nvme* | grep -oP '(?<=/dev/nvme).*.n.(?!p)' | sort -t: -u | sed 's/^/nvme/'); do
-        VAL="${VAL} ${_nvmedisk}"
+    for _disk in $(ls /sys/block/); do
+        # Skip loopback, scsi/sata read-only or tape devices
+        if echo $_disk | grep -q -E "^loop|^sr|^st"; then
+            continue
+        fi
+        # Only grab the first matching device. This was really important when
+        # we listed /dev/sd* etc, but is still important with `ls /sys/block`
+        # to mask mmcblk0boot0, nvme0n1rpmb0 etc.
+        if ! echo $_disk | grep -q -E ${_detected}; then
+            _detected="${_detected}|${_disk}"
+            echo $_disk
+        fi
     done
-
-    for _disk in $(ls /dev/sd* /dev/vd* /dev/hd* /dev/xvd* /dev/nvme* 2>/dev/null | grep -v '[0-9]' | sed 's|/dev/||g')
-    do
-	VAL="${VAL} ${_disk}"
-    done
-
-    VAL=`echo $VAL | tr ' ' '\n'| grep -v '^cd'`
-    export VAL
 }
 
 get_partition()
 {
-    check=$(echo "$1" | sed -n "/nvme/p")
-    if [ -n "$check" ]; then
-        echo "$1p$2"
+    local _partition=$(ls /dev/$1$2 /dev/$1p$2 2>/dev/null)
+    if [ -z $_partition ]; then
+        echo CANT_FIND_$1$2_OR_$1p$2
     else
-        echo "$1$2"
+        echo $_partition
     fi
 }
 
@@ -304,8 +288,8 @@ install_loader()
 
 	    partition_disk=$(get_partition $_disk 2)
 	    echo "Stamping EFI loader on: ${_disk}"
-	    chroot ${_mnt} mkdosfs -F 32 -s 1 -n EFI /dev/${partition_disk}
-	    chroot ${_mnt} mount -t vfat /dev/${partition_disk} /boot/efi
+	    chroot ${_mnt} mkdosfs -F 32 -s 1 -n EFI ${partition_disk}
+	    chroot ${_mnt} mount -t vfat ${partition_disk} /boot/efi
 	    chroot ${_mnt} grub-install --target=x86_64-efi \
 		    --efi-directory=/boot/efi \
 		    --bootloader-id=debian --recheck --no-floppy
@@ -426,7 +410,7 @@ partition_disks()
 
     _disksparts=$(for _disk in ${_disks}; do
 	create_partitions ${_disk} >&2
-	echo /dev/$(get_partition ${_disk} 3)
+	echo $(get_partition ${_disk} 3)
     done)
 
     if [ $# -gt 1 ]; then
@@ -770,12 +754,9 @@ menu_install()
     fi
     
     if ${INTERACTIVE}; then
-	get_physical_disks_list
-	_disklist="${VAL}"
-
 	_list=""
 	_items=0
-	for _disk in ${_disklist}; do
+	for _disk in $(get_physical_disks_list); do
 	    _desc=$(get_media_description "${_disk}" | sed "s/'/'\\\''/g")
 	    _list="${_list} ${_disk} '${_desc}' off"
 	    _items=$((${_items} + 1))
