@@ -927,7 +927,7 @@ menu_install()
 	# Destroy existing partition table, if there is any but tolerate
 	# failure.
 	for _disk in ${_realdisks}; do
-	    sgdisk --zap-all /dev/${_disk} || true
+	    wipefs -a /dev/${_disk} || echo Warning: unable to wipe partition table
 	done
     fi
 
