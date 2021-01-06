@@ -346,6 +346,7 @@ create_partitions()
         if ! sgdisk -n4:0:+16777216K -t4:8200 /dev/${_disk}; then
             return 1
         fi
+        wipefs -a -t zfs_member $(get_partition ${_disk} 4)
     fi
 
     # Create boot pool
