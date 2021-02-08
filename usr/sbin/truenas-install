@@ -451,28 +451,28 @@ disk_is_freenas()
     local upgrade_style=""
     local os_part=""
     local data_part=""
+    local disk_data=""
 
     # We have two kinds of potential upgrades here.
     # The old kind, with 4 slices, and the new kind,
     # with two partitions.
 
     mkdir -p /tmp/data_old
-    if [ -c /dev/${_disk}s4 ]; then
-	os_part=/dev/${_disk}s1a
-	data_part=/dev/${_disk}s4
-	upgrade_style="old"
-    elif [ -c /dev/${_disk}p2 ]; then
-	os_part=/dev/${_disk}p2
-	upgrade_style="new"
-    else
-	return 1
-    fi
+    upgrade_style="new"
 
     if [ "${upgrade_style}" = "new" ]; then
 	# This code is very clumsy.  There
 	# should be a way to structure it such that
 	# all of the cleanup happens as we want it to.
-	local disk_data=$(zdb -l ${os_part})
+	os_part=$(get_partition $_disk 2)  # freebsd-boot (1) + zfs (2)
+	disk_data=$(zdb -l ${os_part})
+	if [ $? -ne 0 ]; then
+	  os_part=$(get_partition $_disk 3)  # bios-boot (1) + efi (2) + zfs (3)
+	  disk_data=$(zdb -l ${os_part})
+	  if [ $? -ne 0 ]; then
+	    return 1
+	  fi
+	fi
 	echo ${disk_data} | grep -qF "name: '${BOOT_POOL}'"
 	if [ $? -eq 1 ]; then
 	  echo ${disk_data} | grep -qF "name: 'freenas-boot'" || return 1
@@ -496,32 +496,40 @@ disk_is_freenas()
 		zpool export ${BOOT_POOL} || true
 		return 1
 	    fi
-	    cp -pR /tmp/data_old/data/. /tmp/data_preserved
-	    # Don't want to keep the old pkgdb around, since we're
-	    # nuking the filesystem
-	    rm -rf /tmp/data_preserved/pkgdb
-	    if [ -f /tmp/data_old/conf/base/etc/hostid ]; then
-		cp -p /tmp/data_old/conf/base/etc/hostid /tmp/
-	    fi
-	    if [ -d /tmp/data_old/root/.ssh ]; then
-		cp -pR /tmp/data_old/root/.ssh /tmp/
-	    fi
-	    if [ -d /tmp/data_old/boot/modules ]; then
-		mkdir -p /tmp/modules
-		for i in `ls /tmp/data_old/boot/modules`
-		do
-		    cp -p /tmp/data_old/boot/modules/$i /tmp/modules/
-		done
-	    fi
-	    if [ -d /tmp/data_old/usr/local/fusionio ]; then
-		cp -pR /tmp/data_old/usr/local/fusionio /tmp/
-	    fi
-	    if [ -f /tmp/data_old/boot.config ]; then
-		cp /tmp/data_old/boot.config /tmp/
-	    fi
-	    if [ -f /tmp/data_old/boot/loader.conf.local ]; then
-		cp /tmp/data_old/boot/loader.conf.local /tmp/
-	    fi
+	    (
+                cd /tmp/data_old &&
+                rsync -aRx \
+                    --exclude data/factory-v1.db \
+                    --exclude data/manifest.json \
+                    data \
+                    root \
+                    /tmp/data_preserved/
+            )
+            if [ -f /tmp/data_old/bin/freebsd-version ]; then
+                (
+                    cd /tmp/data_old &&
+                    rsync -aRx \
+                        bin/freebsd-version \
+                        /tmp/data_preserved/
+                )
+                (
+                    cd /tmp/data_old/conf/base &&
+                    rsync -aRx \
+                        etc/hostid \
+                        /tmp/data_preserved/
+                )
+                p1_uuid=$(sgdisk -i 1 /dev/$_disk | head -n 1 | cut -f 4 -d ' ')
+                if [ "$p1_uuid" = "83BD6B9D-7F41-11DC-BE0B-001560B84F0F" ]; then  # FreeBSD boot
+                    sgdisk -t1:EF02 /dev/$_disk || return 1
+                fi
+            else
+                (
+                    cd /tmp/data_old &&
+                    rsync -aRx \
+                        etc/hostid \
+                        /tmp/data_preserved/
+                )
+            fi
 	    umount /tmp/data_old || return 1
 	    zpool export ${BOOT_POOL} || return 1
 	    return 0
@@ -823,14 +831,7 @@ menu_install()
 		_action="upgrade"
 	    fi
 	fi
-	if [ -c /dev/${_disk}s4 ]; then
-	    upgrade_style="old"
-	elif [ -c /dev/${_disk}p2 ]; then
-	    upgrade_style="new"
-	else
-	    echo "Unknown upgrade style" 1>&2
-	    exit 1
-	fi
+	upgrade_style="new"
 	# Ask if we want to do a format or inplace upgrade
         if ${INTERACTIVE}; then
 	    if ask_upgrade_inplace ; then
@@ -918,21 +919,12 @@ menu_install()
       # When doing new-style upgrades, we can keep the old zpool
       # and instead do a new BE creation
       zpool import -N -f ${BOOT_POOL}
+      zfs create -o canmount=off -o mountpoint=legacy ${BOOT_POOL}/grub || true
     else
       # We repartition on fresh install, or old upgrade_style
       # This destroys all of the pool data, and
       # ensures a clean filesystems.
       partition_disks ${_realdisks}
-    fi
-
-    # TODO: Bring this back
-    if doing_upgrade; then
-	cp -pR /tmp/data_preserved/. /tmp/data/data
-	# we still need the newer version we are upgrading to's
-	# factory-v1.db, else issuing a factory-restore on the
-	# newly upgraded system completely horks the system
-	cp /data/factory-v1.db /tmp/data/data/
-	chown www:www /tmp/data/data/factory-v1.db
     fi
 
     local OS=TrueNAS
@@ -942,11 +934,13 @@ menu_install()
     mount /cdrom/TrueNAS-SCALE.update /mnt -t squashfs -o loop
 
     local sql="$(save_serial_settings | tr '\n' ' ')"
-    local json="{\"disks\": [], \"pool_name\": \"${BOOT_POOL}\", \"sql\": \"${sql}\", \"src\": \"/mnt\"}"
+    local json="{\"disks\": [], \"force_grub_install\": true, \"pool_name\": \"${BOOT_POOL}\", \"sql\": \"${sql}\", \"src\": \"/mnt\"}"
     for _disk in ${_realdisks}; do
         json="$(echo "$json" | jq --arg v "${_disk}" '.disks += [$v]' -)"
     done
-    if ! doing_upgrade; then
+    if doing_upgrade; then
+        json="$(echo "$json" | jq --arg v "/tmp/data_preserved" '.old_root = $v' -)"
+    else
 	if [ -n "${_password}" ]; then
               json="$(echo "$json" | jq --arg v "${_password}" '.password = $v' -)"
 	fi
@@ -956,11 +950,8 @@ menu_install()
 
     # TODO: Bring this back
     if doing_upgrade; then
-	if [ -d /tmp/.ssh ]; then
-            cp -pR /tmp/.ssh /tmp/data/root/
-	fi
 	${INTERACTIVE} && dialog --msgbox "The installer has preserved your database file.
-#$AVATAR_PROJECT will migrate this file, if necessary, to the current format." 6 74
+$AVATAR_PROJECT will migrate this file, if necessary, to the current format." 6 74
     fi
 
     umount -f /mnt
