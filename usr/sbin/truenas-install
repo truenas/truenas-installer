@@ -133,7 +133,9 @@ get_physical_disks_list()
         # Only grab the first matching device. This was really important when
         # we listed /dev/sd* etc, but is still important with `ls /sys/block`
         # to mask mmcblk0boot0, nvme0n1rpmb0 etc.
-        if ! echo $_disk | grep -q -E ${_detected}; then
+        if echo $_disk | grep -q "^sd"; then
+            echo $_disk
+        elif ! echo $_disk | grep -q -E ${_detected}; then
             _detected="${_detected}|${_disk}"
             echo $_disk
         fi
