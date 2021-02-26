@@ -1009,12 +1009,12 @@ report_installation()
 
     hash=$(cat /etc/hostid | sha256sum | tr -d "[:space:]-");
     version=$(cat /etc/version);
-    usage_str=$( jq -n
+    usage_str=$( jq -n \
                     --arg p "TrueNAS-SCALE" \
                     --arg h "${hash}" \
                     --argjson v "[{\"version\": \"$version\"}]" \
                     '{system_hash: $h, platform: $p, "install": $v}' )
-    echo $usage_str | curl -X POST -d '@-' http://usage.freenas.org/submit &
+    echo $usage_str | curl -X POST -m 10 -d '@-' http://usage.freenas.org/submit
 }
 
 main()
