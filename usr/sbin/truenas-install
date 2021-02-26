@@ -997,6 +997,26 @@ menu_shutdown()
     shutdown now >/dev/null
 }
 
+report_installation()
+{
+    for iface in /sys/class/net/*; do
+        name=${iface##*/};
+        if [ $name = "lo" ]; then
+            continue;
+        fi
+        udhcpc -i "${name}";
+    done
+
+    hash=$(cat /etc/hostid | sha256sum | tr -d "[:space:]-");
+    version=$(cat /etc/version);
+    usage_str=$( jq -n
+                    --arg p "TrueNAS-SCALE" \
+                    --arg h "${hash}" \
+                    --argjson v "[{\"version\": \"$version\"}]" \
+                    '{system_hash: $h, platform: $p, "install": $v}' )
+    echo $usage_str | curl -X POST -d '@-' http://usage.freenas.org/submit &
+}
+
 main()
 {
     local _tmpfile="/tmp/answer"
@@ -1011,6 +1031,8 @@ main()
     # Keep ZFS happy
     [ -f /etc/hostid ] || zgenhostid
     modprobe zfs
+
+    [ -f /etc/version ] && report_installation
 
     while :; do
 
