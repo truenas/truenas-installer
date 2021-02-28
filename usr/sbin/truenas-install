@@ -1015,6 +1015,7 @@ report_installation()
                     --argjson v "[{\"version\": \"$version\"}]" \
                     '{system_hash: $h, platform: $p, "install": $v}' )
     echo $usage_str | curl -X POST -m 15 -d '@-' http://usage.freenas.org/submit
+    echo "Completed reporting installation"
 }
 
 main()
@@ -1032,7 +1033,9 @@ main()
     [ -f /etc/hostid ] || zgenhostid
     modprobe zfs
 
-    [ -f /etc/version ] && report_installation > /tmp/usage_stats.log 2>&1 &
+    if [ ! -f /tmp/usage_stats.log ]; then
+        [ -f /etc/version ] && report_installation > /tmp/usage_stats.log 2>&1 &
+    fi
 
     while :; do
 
