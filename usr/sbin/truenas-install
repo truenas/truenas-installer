@@ -1031,6 +1031,7 @@ main()
 
     # Keep ZFS happy
     [ -f /etc/hostid ] || zgenhostid
+    depmod
     modprobe zfs
 
     if [ ! -f /tmp/usage_stats.log ]; then
