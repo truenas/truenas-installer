@@ -710,7 +710,6 @@ menu_install()
     local _msg
     local _i
     local _do_upgrade=""
-    local _menuheight
     local _msg
     local _dlv
     local _password
@@ -772,16 +771,9 @@ menu_install()
 	    _list="${_list} ${_disk} '${_desc}' off"
 	    _items=$((${_items} + 1))
 	done
-	    
+
 	_tmpfile="/tmp/answer"
-	if [ ${_items} -ge 10 ]; then
-	    _items=10
-	    _menuheight=20
-	else
-	    _menuheight=9
-	    _menuheight=$((${_menuheight} + ${_items}))
-	fi
-	if [ "${_items}" -eq 0 ]; then
+	if [ ${_items} -eq 0 ]; then
 	    # Inform the user
 	    eval "dialog --title 'Choose destination media' --msgbox 'No drives available' 5 60" 2>${_tmpfile}
 	    abort
@@ -789,7 +781,7 @@ menu_install()
 
 	eval "dialog --title 'Choose destination media' \
 		--checklist 'Install $AVATAR_PROJECT to a drive. Multiple drives can be selected to provide redundancy. Chosen drives are not available for use in the TrueNAS UI. Arrow keys highlight options, spacebar selects.' \
-		${_menuheight} 60 ${_items} ${_list}" 2>${_tmpfile}
+		20 60 0 ${_list}" 2>${_tmpfile}
 	[ $? -eq 0 ] || abort
     fi
 
