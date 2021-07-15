@@ -487,7 +487,7 @@ disk_is_freenas()
 	if [ -z "$DS" ]; then
 	    zpool export ${BOOT_POOL} || true
 	    return 1
-	elif mount -t zfs ${BOOT_POOL}/ROOT/"${DS}" /tmp/data_old; then
+	elif zfs set mountpoint=legacy ${BOOT_POOL}/ROOT/"${DS}" && mount -t zfs ${BOOT_POOL}/ROOT/"${DS}" /tmp/data_old; then
 	    # If the active dataset doesn't have a database file,
 	    # then it's not FN as far as we're concerned (the upgrade code
 	    # will go badly).
