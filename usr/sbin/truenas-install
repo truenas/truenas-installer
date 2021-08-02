@@ -305,8 +305,6 @@ install_loader()
 
 save_serial_settings()
 {
-    _mnt="$1"
-
     # If the installer was booted with serial mode enabled, we should
     # save these values to the installed system
 
