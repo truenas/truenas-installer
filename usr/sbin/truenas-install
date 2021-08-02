@@ -817,27 +817,27 @@ menu_install()
     # data from a freenas installation.  It also does
     # a zpool import.
     for _disk in ${_disks}; do
-    if disk_is_freenas ${_disk} ; then
-        if ${INTERACTIVE}; then
-	    if ask_upgrade ${_disk} ; then
-		_do_upgrade=1
-		_action="upgrade"
+	if disk_is_freenas ${_disk} ; then
+	    if ${INTERACTIVE}; then
+		if ask_upgrade ${_disk} ; then
+		    _do_upgrade=1
+		    _action="upgrade"
+		fi
+	    else
+		if [ "${_do_upgrade}" != "0" ]; then
+		    _do_upgrade=1
+		    _action="upgrade"
+		fi
 	    fi
-	else
-	    if [ "${_do_upgrade}" != "0" ]; then
-		_do_upgrade=1
-		_action="upgrade"
+	    upgrade_style="new"
+	    # Ask if we want to do a format or inplace upgrade
+	    if ${INTERACTIVE}; then
+		if ask_upgrade_inplace ; then
+		    _upgrade_type="inplace"
+		fi
 	    fi
+	    break
 	fi
-	upgrade_style="new"
-	# Ask if we want to do a format or inplace upgrade
-        if ${INTERACTIVE}; then
-	    if ask_upgrade_inplace ; then
-		_upgrade_type="inplace"
-	    fi
-	fi
-	break
-    fi
     done
     # If we haven't set _do_upgrade by now, we're not
     # doing an upgrade.
