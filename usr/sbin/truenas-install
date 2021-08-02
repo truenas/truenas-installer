@@ -761,43 +761,47 @@ menu_install()
 
     if ${INTERACTIVE}; then
 	pre_install_check || return 0
-    fi
     
-    if ${INTERACTIVE}; then
-	_list=""
-	_items=0
-	for _disk in $(get_physical_disks_list); do
-	    _desc=$(get_media_description "${_disk}" | sed "s/'/'\\\''/g")
-	    _list="${_list} ${_disk} '${_desc}' off"
-	    _items=$((${_items} + 1))
-	done
+	while [ -z "${_disks}" ]; do
+	    _list=""
+	    _items=0
+	    for _disk in $(get_physical_disks_list); do
+		_desc=$(get_media_description "${_disk}" | sed "s/'/'\\\''/g")
+		_list="${_list} ${_disk} '${_desc}' off"
+		_items=$((${_items} + 1))
+	    done
 
-	_tmpfile="/tmp/answer"
-	if [ ${_items} -eq 0 ]; then
-	    # Inform the user
-	    eval "dialog --title 'Choose destination media' --msgbox 'No drives available' 5 60" 2>${_tmpfile}
+	    _tmpfile="/tmp/answer"
+	    if [ ${_items} -eq 0 ]; then
+		# Inform the user
+		eval "dialog --title 'Choose destination media' --msgbox 'No drives available' 5 60" 2>${_tmpfile}
+		continue
+	    fi
+
+	    eval "dialog --title 'Choose destination media' \
+	        --checklist 'Install $AVATAR_PROJECT to a drive. Multiple drives can be selected to provide redundancy. Chosen drives are not available for use in the TrueNAS UI. Arrow keys highlight options, spacebar selects.' \
+		20 60 0 ${_list}" 2>${_tmpfile}
+
+	    if [ -f "${_tmpfile}" ]; then
+		_disks=$(eval "echo `cat "${_tmpfile}"`")
+		rm -f "${_tmpfile}"
+	    fi
+
+	    if [ -z "${_disks}" ]; then
+		dialog --msgbox "You need to select at least one disk!" 6 74
+		continue
+	    fi
+
+	    if disk_is_mounted ${_disks}; then
+		dialog --msgbox "The destination drive is already in use!" 6 74
+		_disks=""
+		continue
+	    fi
+	done
+    else
+	if [ -z "${_disks}" ] || disk_is_mounted ${_disks}; then
 	    abort
 	fi
-
-	eval "dialog --title 'Choose destination media' \
-		--checklist 'Install $AVATAR_PROJECT to a drive. Multiple drives can be selected to provide redundancy. Chosen drives are not available for use in the TrueNAS UI. Arrow keys highlight options, spacebar selects.' \
-		20 60 0 ${_list}" 2>${_tmpfile}
-	[ $? -eq 0 ] || abort
-    fi
-
-    if [ -f "${_tmpfile}" ]; then
-	_disks=$(eval "echo `cat "${_tmpfile}"`")
-	rm -f "${_tmpfile}"
-    fi
-
-    if [ -z "${_disks}" ]; then
-	${INTERACTIVE} && dialog --msgbox "You need to select at least one disk!" 6 74
-	abort
-    fi
-
-    if disk_is_mounted ${_disks} ; then
-        ${INTERACTIVE} && dialog --msgbox "The destination drive is already in use!" 6 74
-        abort
     fi
 
     _action="installation"
