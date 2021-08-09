@@ -61,16 +61,15 @@ wait_keypress()
 # "YES" or "NO".
 #
 # Sets SWAP_IS_SAFE to "YES" if
-#   we are on TrueNAS
-#   *or*
-#   every disk in $@ is >= ${MIN_SWAPSAFE_MEDIASIZE} and none is USB and user says ok
+#   every disk in $@ is >= ${MIN_SWAPSAFE_MEDIASIZE}
+#   and none is USB
+#   and user says ok
 # Otherwise sets SWAP_IS_SAFE to "NO".
 #
 # Use `is_swap_safe` to check the value of ${SWAP_IS_SAFE}.
 check_is_swap_safe()
 {
-    # We assume swap is safe on TrueNAS,
-    # and we try to use the existing value for ${SWAP_IS_SAFE} if already set.
+    # We try to use the existing value for ${SWAP_IS_SAFE} if already set.
     if [ -z "${SWAP_IS_SAFE}" ] ; then
 	local _disk
 	local sector_size
@@ -79,15 +78,15 @@ check_is_swap_safe()
 	for _disk ; do
 	  sector_size=$(blkid -i /dev/${_disk} | sed "s/.*LOGICAL_SECTOR_SIZE=\"\([0-9]\+\)\"/\1/")
 	  sectors=$(cat /sys/block/${_disk}/size)
-	    if [ $((sector_size * sectors)) -lt ${MIN_SWAPSAFE_MEDIASIZE} ] &&
-		grep -qF "0" /sys/block/${_disk}/removable ; then
+	    if [ $((sector_size * sectors)) -lt ${MIN_SWAPSAFE_MEDIASIZE} ] ||
+		grep -qF "1" /sys/block/${_disk}/removable ; then
 		SWAP_IS_SAFE="NO"
 		break
 	    fi
 	done
     fi
     # Make sure we have a valid value for ${SWAP_IS_SAFE}.
-    # If unset, we are either on TrueNAS or didn't find an unsafe disk.
+    # If unset, we didn't find an unsafe disk.
     case "${SWAP_IS_SAFE:="YES"}" in
 	# Accept YES or NO (case-insensitive).
 	[Yy][Ee][Ss])
