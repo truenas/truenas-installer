@@ -466,159 +466,85 @@ disk_is_freenas()
 {
     local _disk="$1"
     local _rv=1
-    local upgrade_style=""
-    local os_part=""
-    local data_part=""
-    local disk_data=""
-
-    # We have two kinds of potential upgrades here.
-    # The old kind, with 4 slices, and the new kind,
-    # with two partitions.
+    local _uuid _os_part _disk_data
 
     mkdir -p /tmp/data_old
-    upgrade_style="new"
 
-    if [ "${upgrade_style}" = "new" ]; then
-	# This code is very clumsy.  There
-	# should be a way to structure it such that
-	# all of the cleanup happens as we want it to.
-	os_part=$(get_partition $_disk 2)  # freebsd-boot (1) + zfs (2)
-	disk_data=$(zdb -l ${os_part})
+    # This code is very clumsy.  There
+    # should be a way to structure it such that
+    # all of the cleanup happens as we want it to.
+    _os_part=$(get_partition ${_disk} 2)  # freebsd-boot (1) + zfs (2)
+    _disk_data=$(zdb -l ${_os_part})
+    if [ $? -ne 0 ]; then
+	_os_part=$(get_partition ${_disk} 3)  # bios-boot (1) + efi (2) + zfs (3)
+	_disk_data=$(zdb -l ${_os_part})
 	if [ $? -ne 0 ]; then
-	  os_part=$(get_partition $_disk 3)  # bios-boot (1) + efi (2) + zfs (3)
-	  disk_data=$(zdb -l ${os_part})
-	  if [ $? -ne 0 ]; then
 	    return 1
-	  fi
 	fi
-	echo ${disk_data} | grep -qF "name: '${BOOT_POOL}'"
-	if [ $? -eq 1 ]; then
-	  echo ${disk_data} | grep -qF "name: 'freenas-boot'" || return 1
-	  BOOT_POOL="freenas-boot"
-	fi
-	zpool import -N -f ${BOOT_POOL} || return 1
+    fi
+    echo ${_disk_data} | grep -qF "name: '${BOOT_POOL}'"
+    if [ $? -eq 1 ]; then
+	echo ${_disk_data} | grep -qF "name: 'freenas-boot'" || return 1
+	BOOT_POOL="freenas-boot"
+    fi
+    zpool import -N -f ${BOOT_POOL} || return 1
 
-	# Now we want to figure out which dataset to use.
-	DS=$(zpool list -H -o bootfs ${BOOT_POOL} | head -n 1 | cut -d '/' -f 3)
-	if [ -z "$DS" ]; then
-	    zpool export ${BOOT_POOL} || true
-	    return 1
-	elif zfs set mountpoint=legacy ${BOOT_POOL}/ROOT/"${DS}" && mount -t zfs ${BOOT_POOL}/ROOT/"${DS}" /tmp/data_old; then
-	    # If the active dataset doesn't have a database file,
-	    # then it's not FN as far as we're concerned (the upgrade code
-	    # will go badly).
-	    # We also check for the Corral database directory.
-	    if [ ! -f /tmp/data_old/data/freenas-v1.db -o \
-		   -d /tmp/data_old/data/freenas.db ]; then
-		umount /tmp/data_old || true
-		zpool export ${BOOT_POOL} || true
-		return 1
-	    fi
-	    (
-                cd /tmp/data_old &&
-                rsync -aRx \
-                    --exclude data/factory-v1.db \
-                    --exclude data/manifest.json \
-                    data \
-                    root \
-                    /tmp/data_preserved/
-            )
-            if [ -f /tmp/data_old/bin/freebsd-version ]; then
-                (
-                    cd /tmp/data_old &&
-                    rsync -aRx \
-                        bin/freebsd-version \
-                        /tmp/data_preserved/
-                )
-                (
-                    cd /tmp/data_old/conf/base &&
-                    rsync -aRx \
-                        etc/hostid \
-                        /tmp/data_preserved/
-                )
-                p1_uuid=$(sgdisk -i 1 /dev/$_disk | head -n 1 | cut -f 4 -d ' ')
-                if [ "$p1_uuid" = "83BD6B9D-7F41-11DC-BE0B-001560B84F0F" ]; then  # FreeBSD boot
-                    sgdisk -t1:EF02 /dev/$_disk || return 1
-                fi
-            else
-                (
-                    cd /tmp/data_old &&
-                    rsync -aRx \
-                        etc/hostid \
-                        /tmp/data_preserved/
-                )
-            fi
-	    umount /tmp/data_old || return 1
-	    zpool export ${BOOT_POOL} || return 1
-	    return 0
-	fi # elif mount ...
-    fi # if [ "${upgrade_style}" = "new" ]
-
-    # This is now legacy code, to support the old
-    # partitioning scheme (freenas-9.2 and earlier)
-    if ! mount "${data_part}" /tmp/data_old ; then
+    # Now we want to figure out which dataset to use.
+    DS=$(zpool list -H -o bootfs ${BOOT_POOL} | head -n 1 | cut -d '/' -f 3)
+    if [ -z "$DS" ]; then
+	zpool export ${BOOT_POOL} || true
 	return 1
     fi
 
-    ls /tmp/data_old > /tmp/data_old.ls
-    if [ -f /tmp/data_old/freenas-v1.db ]; then
-	_rv=0
+    zfs set mountpoint=legacy ${BOOT_POOL}/ROOT/"${DS}" || return 1
+    mount -t zfs ${BOOT_POOL}/ROOT/"${DS}" /tmp/data_old || return 1
+
+    # If the active dataset doesn't have a database file,
+    # then it's not FN as far as we're concerned (the upgrade code
+    # will go badly).
+    # We also check for the Corral database directory.
+    if [ ! -f /tmp/data_old/data/freenas-v1.db -o \
+	-d /tmp/data_old/data/freenas.db ]; then
+	umount /tmp/data_old || true
+	zpool export ${BOOT_POOL} || true
+	return 1
     fi
-    # XXX side effect, shouldn't be here!
-    if [ ! -d "/tmp/data_preserved" ] ; then
-        mkdir /tmp/data_preserved
+    (
+	cd /tmp/data_old &&
+	rsync -aRx \
+	    --exclude data/factory-v1.db \
+	    --exclude data/manifest.json \
+	    data \
+	    root \
+	    /tmp/data_preserved/
+    )
+    if [ -f /tmp/data_old/bin/freebsd-version ]; then
+	(
+	    cd /tmp/data_old &&
+	    rsync -aRx \
+		bin/freebsd-version \
+		/tmp/data_preserved/
+	)
+	(
+	    cd /tmp/data_old/conf/base &&
+	    rsync -aRx \
+		etc/hostid \
+		/tmp/data_preserved/
+	)
+	_uuid=$(get_disk_parttype $(get_partition ${_disk} 1))
+	if [ "${_uuid}" = "83bd6b9d-7f41-11dc-be0b-001560b84f0f" ]; then  # FreeBSD boot
+	    sgdisk -t1:EF02 /dev/${_disk} || return 1
+	fi
+    else
+	(
+	    cd /tmp/data_old &&
+	    rsync -aRx \
+		etc/hostid \
+		/tmp/data_preserved/
+	)
     fi
-    cp -pR /tmp/data_old/. /tmp/data_preserved
-    umount /tmp/data_old
-    if [ $_rv -eq 0 ]; then
-	# For GUI upgrades, we only have one OS partition
-	# that has conf/base/etc.  For ISO upgrades, we
-	# have two, but only one is active.
-	slice=$(gpart show ${_disk} | awk '/\[active\]/ { print $3 }')
-	if [ -z "${slice}" ]; then
-	    # We don't have an active slice, so something is wrong.
-	    return 1
-	fi
-	mount /dev/${_disk}s${slice}a /tmp/data_old
-	ls /tmp/data_old > /dev/null
-	if [ ! -d /tmp/data_old/conf/base/etc ]
-	then
-	    # Mount the other partition
-	    if [ "${slice}" -eq 1 ]; then
-		slice=2
-	    else
-		slice=1
-	    fi
-	    umount /tmp/data_old
-	    mount /dev/${_disk}s${slice}a /tmp/data_old
-	    ls /tmp/data_old > /dev/null
-	fi
-	if [ -f /tmp/data_old/conf/base/etc/hostid ]; then
-	    cp -p /tmp/data_old/conf/base/etc/hostid /tmp/
-	fi
-	if [ -d /tmp/data_old/root/.ssh ]; then
-	    cp -pR /tmp/data_old/root/.ssh /tmp/
-	fi
-	if [ -d /tmp/data_old/boot/modules ]; then
-	    mkdir -p /tmp/modules
-	    for i in `ls /tmp/data_old/boot/modules`
-	    do
-		cp -p /tmp/data_old/boot/modules/$i /tmp/modules/
-	    done
-	fi
-	if [ -d /tmp/data_old/usr/local/fusionio ]; then
-	    cp -pR /tmp/data_old/usr/local/fusionio /tmp/
-	fi
-	if [ -f /tmp/data_old/boot.config ]; then
-	    cp /tmp/data_old/boot.config /tmp/
-	fi
-	if [ -f /tmp/data_old/boot/loader.conf.local ]; then
-	    cp /tmp/data_old/boot/loader.conf.local /tmp/
-	fi
-	umount /tmp/data_old
-    fi
-    rmdir /tmp/data_old
-    return $_rv
+    umount /tmp/data_old || return 1
+    zpool export ${BOOT_POOL}
 }
 
 prompt_password()
@@ -731,7 +657,6 @@ menu_install()
     local _password
     local os_part
     local data_part
-    local upgrade_style="new"
     local whendone=""
 
     local readonly CD_UPGRADE_SENTINEL="/data/cd-upgrade"
@@ -845,7 +770,6 @@ menu_install()
 		    _action="upgrade"
 		fi
 	    fi
-	    upgrade_style="new"
 	    # Ask if we want to do a format or inplace upgrade
 	    if ${INTERACTIVE}; then
 		if ask_upgrade_inplace ; then
@@ -890,55 +814,20 @@ menu_install()
 
     if [ "${_upgrade_type}" = "inplace" ]
     then
-        mkdir -p /tmp/data
-	if [ "${upgrade_style}" = "old" ]; then
-	    # For old style, we have two potential
-	    # partitions to look at:  s1a and s2a.
-	    # 
-	    slice=$(gpart show ${_disk} | awk '/\[active\]/ { print $3 }')
-	    if [ -z "${slice}" ]; then
-		# We don't have an active slice, so something is wrong.
-		false
-	    fi
-	    mount /dev/${_disk}s${slice}a /tmp/data
-	    ls /tmp/data > /dev/null
-	    if [ ! -d /tmp/data/conf/base/etc ]
-	    then
-		# Mount the other partition
-		if [ "${slice}" -eq 1 ]; then
-		    slice=2
-		else
-		    slice=1
-		fi
-		umount /tmp/data
-		mount /dev/${_disk}s${slice}a /tmp/data
-		ls /tmp/data > /dev/null
-	    fi
-            umount /tmp/data
-	elif [ "${upgrade_style}" != "new" ]; then
-		echo "Unknown upgrade style" 1>&2
-		false
-	fi
-        rmdir /tmp/data
+	# When doing new-style upgrades, we can keep the old zpool
+	# and instead do a new BE creation
+	zpool import -N -f ${BOOT_POOL}
+	zfs create -o canmount=off -o mountpoint=legacy ${BOOT_POOL}/grub || true
     else
 	# Destroy existing partition table, if there is any but tolerate
 	# failure.
 	for _disk in ${_realdisks}; do
 	    wipefs -a /dev/${_disk} || echo Warning: unable to wipe partition table
 	done
-    fi
-
-    if [ "${_upgrade_type}" = "inplace" ]
-    then
-      # When doing new-style upgrades, we can keep the old zpool
-      # and instead do a new BE creation
-      zpool import -N -f ${BOOT_POOL}
-      zfs create -o canmount=off -o mountpoint=legacy ${BOOT_POOL}/grub || true
-    else
-      # We repartition on fresh install, or old upgrade_style
-      # This destroys all of the pool data, and
-      # ensures a clean filesystems.
-      partition_disks ${_realdisks}
+	# We repartition on fresh install, or old upgrade_style
+	# This destroys all of the pool data, and
+	# ensures a clean filesystems.
+	partition_disks ${_realdisks}
     fi
 
     local OS=TrueNAS
