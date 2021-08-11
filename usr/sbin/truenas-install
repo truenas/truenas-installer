@@ -386,6 +386,10 @@ get_minimum_size()
 	    echo "Could not do anything with ${_disk}, skipping" 1>&2
 	    continue
 	fi
+	_size=$(get_disk_size $(get_partition ${_disk} 3))
+	if [ ${_min} -eq 0 -o ${_size} -lt ${_min} ]; then
+	    _min=${_size}
+	fi
     done
 
     echo ${_min}
@@ -398,10 +402,9 @@ get_minimum_size()
 
 partition_disks()
 {
-    local _disks _disksparts
+    local _disk _disks _disksparts
     local _mirror
     local _minsize
-    local _size
 
     # Create and destroy existing pool (if exists)
     zpool import -N -f ${BOOT_POOL} 2> /dev/null || true
@@ -413,18 +416,15 @@ partition_disks()
     for _disk in ${_disks}; do
 	sgdisk -Z /dev/${_disk} >/dev/null 2>&1 || true
 	sgdisk -Z /dev/${_disk} >/dev/null 2>&1 || true
-	#dd if=/dev/zero of=/dev/${_disk} bs=1M count=2 >/dev/null
-	#_size=$(diskinfo ${_disk} | cut -f 3)
-	#dd if=/dev/zero of=/dev/${_disk} bs=1M oseek=$((_size / MiB - 2)) >/dev/null || true
     done
 
     check_is_swap_safe ${_disks}
-    #_minsize=$(get_minimum_size ${_disks})
+    _minsize=$(get_minimum_size ${_disks})
 
-    #if [ ${_minsize} -lt ${MIN_ZFS_PARTITION_SIZE} ]; then
-    #	echo "Disk is too small to install ${AVATAR_PROJECT}" 1>&2
-    #	return 1
-    #fi
+    if [ ${_minsize} -lt ${MIN_ZFS_PARTITION_SIZE} ]; then
+	echo "Disk is too small to install ${AVATAR_PROJECT}" 1>&2
+	return 1
+    fi
 
     _disksparts=$(for _disk in ${_disks}; do
 	create_partitions ${_disk} >&2
@@ -436,6 +436,7 @@ partition_disks()
     else
 	_mirror=""
     fi
+
     # Regardless of upgrade/fresh installation, if we are creating a new pool, it's going to be named after value of NEW_BOOT_POOL
     BOOT_POOL=${NEW_BOOT_POOL}
     zpool create -f -o cachefile=/tmp/zpool.cache -o ashift=12 -d \
