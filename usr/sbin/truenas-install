@@ -36,8 +36,8 @@ pre_install_check()
     # We need at least 8 GB of RAM
     # minus 1 GB to allow for reserved memory
     local minmem=$((7 * GiB))
-    local kbsize=$(cat /proc/meminfo | grep MemTotal | awk '{print $2}')
-    local memsize=$(expr ${kbsize} \* 1024)
+    local kbsize=$(awk '/MemTotal/ { print $2 }' /proc/meminfo)
+    local memsize=$((kbsize * KiB))
 
     if [ ${memsize} -lt ${minmem} ]; then
 	dialog --clear --title "${AVATAR_PROJECT}" --defaultno \
