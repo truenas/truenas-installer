@@ -120,22 +120,16 @@ is_swap_safe()
 get_physical_disks_list()
 {
     local _disk
-    local _detected="PLACEHOLDER_FOR_CONCAT"
 
-    for _disk in $(ls /sys/block/); do
-        # Skip loopback, scsi/sata read-only or tape devices
-        if echo $_disk | grep -q -E "^loop|^sr|^st"; then
-            continue
-        fi
-        # Only grab the first matching device. This was really important when
-        # we listed /dev/sd* etc, but is still important with `ls /sys/block`
-        # to mask mmcblk0boot0, nvme0n1rpmb0 etc.
-        if echo $_disk | grep -q "^sd"; then
-            echo $_disk
-        elif ! echo $_disk | grep -q -E ${_detected}; then
-            _detected="${_detected}|${_disk}"
-            echo $_disk
-        fi
+    ls /sys/block/ |
+    # Skip inappropriate devices.
+    awk '!/^(md|dm|sr|st|loop)/' |
+    while read _disk; do
+	if [ -b /dev/${_disk} ] &&
+	    [ $(get_disk_size /dev/${_disk}) -gt ${MIN_ZFS_PARTITION_SIZE} ] &&
+	    ! disk_is_mounted ${_disk}; then
+	    echo ${_disk}
+	fi
     done
 }
 
@@ -173,7 +167,7 @@ disk_is_mounted()
 
     for _dev
     do
-	if mount -v | grep -qE "^/dev/${_dev}[sp][0-9]+"
+	if mount -v | grep -qE "^/dev/${_dev}p?[0-9]+"
 	then
 	    return 0
 	fi
@@ -730,12 +724,6 @@ menu_install()
 
 	    if [ -z "${_disks}" ]; then
 		dialog --msgbox "You need to select at least one disk!" 6 74
-		continue
-	    fi
-
-	    if disk_is_mounted ${_disks}; then
-		dialog --msgbox "The destination drive is already in use!" 6 74
-		_disks=""
 		continue
 	    fi
 	done
