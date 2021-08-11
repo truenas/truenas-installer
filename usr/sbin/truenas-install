@@ -325,6 +325,26 @@ save_serial_settings()
 
 }
 
+get_disk_info()
+{
+    lsblk --bytes --nodeps --noheadings --output "$@"
+}
+
+get_disk_size()
+{
+    get_disk_info size "$@"
+}
+
+get_disk_logical_sector_size()
+{
+    get_disk_info log-sec "$@"
+}
+
+get_disk_part_type()
+{
+    get_disk_info parttype "$@"
+}
+
 create_partitions()
 {
     local _disk="$1"
