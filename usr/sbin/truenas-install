@@ -346,11 +346,11 @@ get_disk_part_type()
 create_partitions()
 {
     local _disk="$1"
-    local sector_size=$(blkid -i /dev/${_disk} | sed "s/.*LOGICAL_SECTOR_SIZE=\"\([0-9]\+\)\"/\1/")
-    local alignment_multiple=$(expr 4096 / $sector_size)
+    local _sector_size=$(get_disk_logical_sector_size /dev/${_disk})
+    local _alignment_multiple=$((4096 / _sector_size))
 
     # Create BIOS boot partition
-    if ! sgdisk -a${alignment_multiple} -n1:0:+1024K -t1:EF02 /dev/${_disk}; then
+    if ! sgdisk -a${_alignment_multiple} -n1:0:+1024K -t1:EF02 /dev/${_disk}; then
             return 1
     fi
 
