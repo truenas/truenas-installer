@@ -69,17 +69,15 @@ wait_keypress()
 # Use `is_swap_safe` to check the value of ${SWAP_IS_SAFE}.
 check_is_swap_safe()
 {
+    local _disk _size
+
     # We try to use the existing value for ${SWAP_IS_SAFE} if already set.
     if [ -z "${SWAP_IS_SAFE}" ] ; then
-	local _disk
-	local sector_size
-	local sectors
 	# Check every disk in $@, aborting if an unsafe disk is found.
 	for _disk ; do
-	  sector_size=$(blkid -i /dev/${_disk} | sed "s/.*LOGICAL_SECTOR_SIZE=\"\([0-9]\+\)\"/\1/")
-	  sectors=$(cat /sys/block/${_disk}/size)
-	    if [ $((sector_size * sectors)) -lt ${MIN_SWAPSAFE_MEDIASIZE} ] ||
-		grep -qF "1" /sys/block/${_disk}/removable ; then
+	    _size=$(get_disk_size /dev/${_disk})
+	    if [ ${_size} -lt ${MIN_SWAPSAFE_MEDIASIZE} ] ||
+	        grep -qF "1" /sys/block/${_disk}/removable ; then
 		SWAP_IS_SAFE="NO"
 		break
 	    fi
