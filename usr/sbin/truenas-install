@@ -421,7 +421,6 @@ partition_disks()
     fi
 
     _disksparts=$(for _disk in ${_disks}; do
-	create_partitions ${_disk} >&2
 	echo $(get_partition ${_disk} 3)
     done)
 
