@@ -368,7 +368,7 @@ create_partitions()
     return 0
 }
 
-get_minimum_size()
+get_minimum_size_and_partition()
 {
     local _min=0
     local _disk
@@ -413,7 +413,7 @@ partition_disks()
     done
 
     check_is_swap_safe ${_disks}
-    _minsize=$(get_minimum_size ${_disks})
+    _minsize=$(get_minimum_size_and_partition ${_disks})
 
     if [ ${_minsize} -lt ${MIN_ZFS_PARTITION_SIZE} ]; then
 	echo "Disk is too small to install ${AVATAR_PROJECT}" 1>&2
@@ -421,7 +421,6 @@ partition_disks()
     fi
 
     _disksparts=$(for _disk in ${_disks}; do
-	create_partitions ${_disk} >&2
 	echo $(get_partition ${_disk} 3)
     done)
 
@@ -827,7 +826,7 @@ menu_install()
     local sql="$(save_serial_settings | tr '\n' ' ')"
     local json=$(cat <<-EOF
 	{"disks": [], "force_grub_install": true, "pool_name": "${BOOT_POOL}", "sql": "${sql}", "src": "/mnt"}
-    EOF
+	EOF
     )
     for _disk in ${_realdisks}; do
         json="$(echo "$json" | jq --arg v "${_disk}" '.disks += [$v]' -)"
