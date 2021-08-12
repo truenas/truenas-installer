@@ -827,7 +827,7 @@ menu_install()
     local sql="$(save_serial_settings | tr '\n' ' ')"
     local json=$(cat <<-EOF
 	{"disks": [], "force_grub_install": true, "pool_name": "${BOOT_POOL}", "sql": "${sql}", "src": "/mnt"}
-    EOF
+	EOF
     )
     for _disk in ${_realdisks}; do
         json="$(echo "$json" | jq --arg v "${_disk}" '.disks += [$v]' -)"
