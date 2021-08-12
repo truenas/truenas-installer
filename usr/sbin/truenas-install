@@ -37,7 +37,7 @@ pre_install_check()
     # minus 1 GB to allow for reserved memory
     local minmem=$((7 * GiB))
     local kbsize=$(awk '/MemTotal/ { print $2 }' /proc/meminfo)
-    local memsize=$((kbsize * KiB))
+    local memsize=$((kbsize * kiB))
 
     if [ ${memsize} -lt ${minmem} ]; then
 	dialog --clear --title "${AVATAR_PROJECT}" --defaultno \
