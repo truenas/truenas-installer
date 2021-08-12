@@ -368,7 +368,7 @@ create_partitions()
     return 0
 }
 
-get_minimum_size()
+get_minimum_size_and_partition()
 {
     local _min=0
     local _disk
@@ -413,7 +413,7 @@ partition_disks()
     done
 
     check_is_swap_safe ${_disks}
-    _minsize=$(get_minimum_size ${_disks})
+    _minsize=$(get_minimum_size_and_partition ${_disks})
 
     if [ ${_minsize} -lt ${MIN_ZFS_PARTITION_SIZE} ]; then
 	echo "Disk is too small to install ${AVATAR_PROJECT}" 1>&2
