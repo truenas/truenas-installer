@@ -310,9 +310,8 @@ save_serial_settings()
     if [ -n "$SERIALSPEED" ] ; then
        echo "update system_advanced set adv_serialspeed = $SERIALSPEED;"
     fi
-    SERIALPORT=$(setserial -G /dev/$tty|awk '{print $5}')
-    if [ -n "$SERIALPORT" ] ; then
-       echo "update system_advanced set adv_serialport = '$SERIALPORT';"
+    if [ -n "$tty" ] ; then
+       echo "update system_advanced set adv_serialport = '$tty';"
     fi
 
 }
