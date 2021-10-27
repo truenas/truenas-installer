@@ -340,7 +340,7 @@ create_partitions()
 {
     local _disk="$1"
     local _sector_size=$(get_disk_logical_sector_size /dev/${_disk})
-    local _alignment_multiple=$((4096 / _sector_size))
+    local _alignment_multiple=4096
 
     # Create BIOS boot partition
     if ! sgdisk -a${_alignment_multiple} -n1:0:+1024K -t1:EF02 /dev/${_disk}; then
