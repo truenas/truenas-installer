@@ -822,6 +822,16 @@ menu_install()
     umount /mnt || true
     mount /cdrom/TrueNAS-SCALE.update /mnt -t squashfs -o loop
 
+    space_required=$(cat /mnt/manifest.json | jq ".size")
+    free_space=$(zpool get -H -o value -p free "$BOOT_POOL")
+    if [ "$free_space" -lt "$space_required" ] ; then
+      ${INTERACTIVE} && dialog --msgbox "Insufficient disk space available. TrueNAS requires \
+$(numfmt --to=iec-i --suffix=B --format="%.1f" $free_space) but only \
+$(numfmt --to=iec-i --suffix=B --format="%.1f" $space_required) are available" 6 74
+      trap - EXIT
+      exit 1
+    fi
+
     local sql="$(save_serial_settings | tr '\n' ' ')"
     local json=$(cat <<EOF
 {"disks": [], "force_grub_install": true, "pool_name": "${BOOT_POOL}", "sql": "${sql}", "src": "/mnt"}
