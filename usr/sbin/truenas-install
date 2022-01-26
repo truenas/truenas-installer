@@ -148,6 +148,10 @@ get_media_description()
     local _media
     local _description
     local _cap
+    local _lsblk
+    local _label
+    local _root_fstype
+    local _children
 
     _media=$1
     if [ -n "${_media}" ]; then
@@ -156,8 +160,51 @@ get_media_description()
 	if [ -z "${_description}" ]; then
 	    _description="Unknown Device"
 	fi
+
+        # need to settle so that lsblk output is stable
+        udevadm settle
+        _lsblk=$(lsblk -fJ -o fstype,name,label "/dev/${_media}" | jq .blockdevices[0])
+        _root_fstype=$(echo "${_lsblk}" | jq .fstype)
+        _children=$(echo "${_lsblk}" | jq .children)
+
+        if [ "${_root_fstype}" = "null" ] && [ "${_children}" = "null" ]; then
+            # no fs info in lsblk output
+            _label=""
+        elif [ "${_root_fstype}" != "null" ]; then
+            _label=$(echo "${_root_fstype}" | cut -c -15)
+        else
+            _label=$(echo "${_children}" | jq '[.[] | select(.fstype=="zfs_member")][0].label')
+            if [ "${_label}" = "null" ]; then
+                # disk is not ZFS, work way through a few different possibilties
+                # start with looking for ext4 partition, then xfs, finally settle
+                # on anything that has a fstype populated
+                _label=$(echo "${_children}" | jq '[.[] | select(.fstype=="ext4")][0]')
+                if [ "${_label}" = "null" ]; then
+                    _label=$(echo "${_children}" | jq '[.[] | select(.fstype=="xfs")][0]')
+                fi
+                if [ "${_label}" = "null" ]; then
+                    _label=$(echo "${_children}" | jq '[.[] | select(.fstype!="null")][0]')
+                fi
+                if [ "${_label}" = "null" ]; then
+                    # no child partitions have fstype info
+                    _label=""
+                else
+                    _root_fstype=$(echo "${_label}" | jq .fstype | tr -d '"')
+                    _label=$(echo "${_label}" | jq .label)
+                    if [ "${_label}" = "null" ]; then
+                        _label=$(echo "${_root_fstype}" | cut -c -15)
+                    else
+                        _label=$(echo "${_root_fstype}-${_label}" | cut -c -15)
+                    fi
+                fi
+            else
+                echo "media: /dev/${_media} -- label: ${_label}" >> /log.install
+                _label=$(echo "zfs-${_label}" | cut -c -15)
+            fi
+        fi
+
 	_cap=`sgdisk -p /dev/${_media} | grep "Disk /dev/${_media}" | cut -d ' ' -f 5-6`
-	echo "${_description} -- ${_cap}"
+	echo "${_description} ${_label} -- ${_cap}"
     fi
 }
 
