@@ -532,6 +532,7 @@ disk_is_freenas()
 	    cd /tmp/data_old &&
 	    rsync -aRx \
 		etc/hostid \
+		etc/machine-id \
 		/tmp/data_preserved/
 	)
     fi
