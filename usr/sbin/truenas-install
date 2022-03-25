@@ -491,7 +491,7 @@ partition_disks()
 		-o feature@lz4_compress=enabled \
 		-o feature@spacemap_histogram=enabled \
 		-o feature@userobj_accounting=enabled \
-		-O acltype=posixacl -O canmount=off -O compression=lz4 -O devices=off -O mountpoint=none \
+		-O acltype=off -O canmount=off -O compression=lz4 -O devices=off -O mountpoint=none \
 		-O normalization=formD -O relatime=on -O xattr=sa \
 		${BOOT_POOL} ${_mirror} ${_disksparts}
     zfs set compression=on ${BOOT_POOL}
