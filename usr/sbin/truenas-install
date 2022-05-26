@@ -394,10 +394,14 @@ create_partitions()
             return 1
     fi
 
+    echo "boot partition created for "$_disk
+
     # Create EFI partition (Even if not used, allows user to switch to UEFI later)
     if ! sgdisk -n2:0:+524288K -t2:EF00 /dev/${_disk}; then
 	    return 1
     fi
+
+    echo "EFI partition created for "$_disk
 
     if is_swap_safe; then
         if ! sgdisk -n4:0:+16777216K -t4:8200 /dev/${_disk}; then
@@ -411,6 +415,8 @@ create_partitions()
 	    return 1
     fi
 
+    echo "Boot pool created for "$_disk
+
     return 0
 }
 
@@ -422,6 +428,7 @@ get_minimum_size_and_partition()
 
     for _disk
     do
+    echo $_disk
 	if ! create_partitions ${_disk} 1>&2; then
 	    echo "Could not do anything with ${_disk}, skipping" 1>&2
 	    continue
