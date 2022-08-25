@@ -962,7 +962,7 @@ report_installation()
                     --arg h "${hash}" \
                     --argjson v "[{\"version\": \"$version\"}]" \
                     '{system_hash: $h, platform: $p, "install": $v}' )
-    echo $usage_str | curl -X POST -m 15 -d '@-' http://usage.freenas.org/submit
+    echo $usage_str | curl -X POST -m 15 -d '@-' https://usage.truenas.com/submit
     echo "Completed reporting installation"
 }
 
