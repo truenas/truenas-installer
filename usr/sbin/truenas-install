@@ -587,10 +587,40 @@ disk_is_freenas()
     zpool export ${BOOT_POOL}
 }
 
-prompt_password()
+prompt_authentication_method()
 {
 
-    local values value password="" password1 password2 _counter _tmpfile="/tmp/pwd.$$"
+    local username title password password2 _number _tmpfile="/tmp/pwd.$$"
+
+    dialog \
+        --clear \
+        --title "Web UI Authentication Method" \
+        --menu "" 12 73 6 \
+        "1" "Administrative user (admin)" \
+        "2" "Root user (not recommended)" \
+        "3" "Configure using Web UI" \
+        2> "${_tmpfile}"
+    ret=$?
+    if [ $ret -eq 1 ]; then
+        rm -f ${_tmpfile}
+        return 1
+    fi
+
+    _number=`cat "${_tmpfile}"`
+    case "${_number}" in
+        1)
+            username="admin"
+            title="Enter your \"admin\" user password. Root password login will be disabled"
+            ;;
+        2)
+            username="root"
+            title="Enter your root password"
+            ;;
+        3)
+            echo "null" 1>&2
+            return
+            ;;
+    esac
 
     cat << __EOF__ > /tmp/dialogconf
 bindkey formfield TAB FORM_NEXT
@@ -604,45 +634,39 @@ __EOF__
     export DIALOGRC="/tmp/dialogconf"
 
     while true; do
-	dialog --insecure \
-	    --extra-button --extra-label "Do not set password" \
-	    --output-fd 3 \
-	    --visit-items \
-	    --passwordform "Enter your root password; cancel for cancelling installation" \
-	    10 70 0 \
-	    "Password:" 1 10 "" 0 30 25 50 \
-	    "Confirm Password:" 2 10 "" 2 30 25 50 \
-	    3> ${_tmpfile}
+        dialog --insecure \
+            --output-fd 3 \
+            --visit-items \
+            --passwordform "$title. Cancel for cancelling installation" \
+            10 70 0 \
+            "Password:" 1 10 "" 0 30 25 50 \
+            "Confirm Password:" 2 10 "" 2 30 25 50 \
+            3> ${_tmpfile}
+        ret=$?
+        if [ $ret -eq 1 ]; then
+            rm -f ${_tmpfile}
+            return 1
+        fi
 
-	ret=$?
-	if [ $ret -eq 1 ]; then
-	    rm -f ${_tmpfile}
-	    return 1
-	fi
+        { read password ; read password2; } < ${_tmpfile}
+        rm -f ${_tmpfile}
 
-	{ read password1 ; read password2; } < ${_tmpfile}
-	rm -f ${_tmpfile}
-
-	if [ $ret -eq 3 ]; then
-	    password=""
-	    break
-	elif [ "${password1}" != "${password2}" ]; then
-	    dialog --msgbox "Passwords do not match." 7 60 2> /dev/null
-	elif [ -z "${password1}" ]; then
-	    dialog --msgbox "Empty password is not secure" 7 60 2> /dev/null
-	else
-	    password="${password1}"
-	    break
-	fi
-
+        if [ "${password}" != "${password2}" ]; then
+            dialog --msgbox "Passwords do not match." 7 60 2> /dev/null
+        elif [ -z "${password}" ]; then
+            dialog --msgbox "Empty password is not allowed" 7 60 2> /dev/null
+        else
+            break
+        fi
     done
 
     rm -f ${DIALOGRC}
     unset DIALOGRC
 
-
-    echo -n "${password}" 1>&2
-
+    jq --null-input \
+        --arg username "$username" \
+        --arg password "$password" \
+        '{"username": $username, "password": $password}' 1>&2
 }
 
 cleanup()
@@ -694,7 +718,7 @@ menu_install()
     local _do_upgrade=""
     local _msg
     local _dlv
-    local _password
+    local authentication_method
     local os_part
     local data_part
     local whendone=""
@@ -824,9 +848,9 @@ menu_install()
     ${INTERACTIVE} && new_install_verify "${_action}" "${_upgrade_type}" ${_realdisks}
 
     if ${INTERACTIVE} && [ ${_do_upgrade} -eq 0 ]; then
-	prompt_password 2> /tmp/password
+	prompt_authentication_method 2> /tmp/authentication_method
 	if [ $? -eq 0 ]; then
-	    _password="$(cat /tmp/password 2> /dev/null)"
+	    authentication_method="$(cat /tmp/authentication_method 2> /dev/null)"
 	else
 	    echo "Installation cancelled"
 	    exit 1
@@ -891,9 +915,7 @@ EOF
     if doing_upgrade; then
         json="$(echo "$json" | jq --arg v "/tmp/data_preserved" '.old_root = $v' -)"
     else
-	if [ -n "${_password}" ]; then
-              json="$(echo "$json" | jq --arg v "${_password}" '.password = $v' -)"
-	fi
+	json="$(echo "$json" | jq --argjson v "${authentication_method}" '.authentication_method = $v' -)"
     fi
 
     (cd /mnt && echo "$json" | python3 -m truenas_install)
