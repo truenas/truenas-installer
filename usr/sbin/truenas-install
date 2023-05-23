@@ -914,7 +914,9 @@ EOF
     done
     if doing_upgrade; then
         local precheck_json="$(echo '{"precheck": true}' | jq --arg v "/tmp/data_preserved" '.old_root = $v' -)"
-        (cd /mnt && echo "$precheck_json" | python3 -m truenas_install)
+        warning="$(cd /mnt && echo "$precheck_json" | python3 -m truenas_install)"
+        [ ! -z "$warning" ] && dialog --clear --title "${AVATAR_PROJECT}" --defaultno \
+            --yesno "$warning\n\nContinue anyway?" 15 74
 
         json="$(echo "$json" | jq --arg v "/tmp/data_preserved" '.old_root = $v' -)"
     else
