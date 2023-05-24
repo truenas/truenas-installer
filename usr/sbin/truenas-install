@@ -388,6 +388,8 @@ create_partitions()
     local _disk="$1"
     local _sector_size=$(get_disk_logical_sector_size /dev/${_disk})
     local _alignment_multiple=4096
+    local _legacymsg="Allow EFI boot? Enter Yes for systems with newer components such as NVMe devices. Enter No when system hardware requires legacy BIOS boot workaround."
+    local _pmbr_choice="/tmp/set_pmbr"
 
     # Create BIOS boot partition
     if ! sgdisk -a${_alignment_multiple} -n1:0:+1024K -t1:EF02 -A1:set:2 /dev/${_disk}; then
@@ -409,6 +411,23 @@ create_partitions()
     # Create boot pool
     if ! sgdisk -n3:0:0 -t3:BF01 /dev/${_disk}; then
 	    return 1
+    fi
+
+    if [ ! -d /sys/firmware/efi ]; then
+        if [ -f "$_pmbr_choice" ]; then
+            read -r _set_pmbr < "$_pmbr_choice"
+        else
+            if ! dialog --title "Legacy Boot" --yesno "$_legacymsg" 8 50; then
+                echo "yes" > "$_pmbr_choice"
+                _set_pmbr="yes"
+            else
+                echo "no" > "$_pmbr_choice"
+                _set_pmbr="no"
+            fi
+        fi
+        if [ "$_set_pmbr" = "yes" ]; then
+            parted -s /dev/${_disk} disk_set pmbr_boot on
+        fi
     fi
 
     return 0
