@@ -430,6 +430,8 @@ create_partitions()
         fi
     fi
 
+    sleep 20
+
     return 0
 }
 
