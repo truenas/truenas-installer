@@ -794,6 +794,7 @@ menu_install()
 	    eval "dialog --title 'Choose destination media' \
 	        --checklist 'Install $AVATAR_PROJECT to a drive. Multiple drives can be selected to provide redundancy. Chosen drives are not available for use in the TrueNAS UI. Arrow keys highlight options, spacebar selects.' \
 		20 60 0 ${_list}" 2>${_tmpfile}
+	    [ $? -eq 0 ] || abort
 
 	    if [ -f "${_tmpfile}" ]; then
 		_disks=$(eval "echo `cat "${_tmpfile}"`")
