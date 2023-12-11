@@ -133,6 +133,70 @@ get_physical_disks_list()
     done
 }
 
+is_nvme_device()
+{
+    local _disk="$1"
+    case "${_disk}" in
+	*nvme*)
+	    return 0
+	    ;;
+    esac
+    return 1
+}
+
+wait_on_partitions()
+{
+    if [ "$#" -lt 2 ]; then
+        echo "FATAL: A disk and at least one partition number must be given" > /dev/tty
+        return 1
+    elif is_nvme_device $1; then
+        if [ ! -c "/dev/${1}" ]; then
+	    # we assume the character special device exists
+	    echo "FATAL: NVMe device (/dev/${1}) not found" > /dev/tty
+	    return 1
+        fi
+    elif [ ! -b "/dev/${1}" ]; then
+	# we assume the block special device exists
+	echo "FATAL: Disk device (/dev/${1}) not found" > /dev/tty
+	return 1
+    fi
+
+    local _disk="$1"
+    shift
+    local _sleeptime=1
+    local _maxwait=30
+    local _slepttime
+    local _parts="$*"
+    local _part _slepttime
+    for _part in ${_parts}; do
+        _slepttime=0
+        while [ ${_slepttime} -lt ${_maxwait} ]; do
+	    if [ -b "/dev/${_disk}${_part}" ]; then
+                echo "SUCCESS: Found /dev/${_disk}${_part}" > /dev/tty
+                break
+            elif [ -b "/dev/${_disk}p${_part}" ]; then
+                echo "SUCCESS: Found /dev/${_disk}p${_part}" > /dev/tty
+                break
+            elif [ -b "/dev/${_disk}n1p${_part}" ]; then
+		# NOTE: NVMe can have multiple namespaces (nvme0n1p1, nvme0n2p1, nvme0n3p1, etc)
+		# but we're not ready for that and expect namespace1 (nvme0n1) for now
+                echo "SUCCESS: Found /dev/${_disk}n1p${_part}" > /dev/tty
+                break
+            else
+                sleep ${_sleeptime}
+		_slepttime=$(expr $_slepttime + 1)
+                echo "Slept ${_slepttime} seconds waiting on disk (${_disk}) partition number: ${_part}" > /dev/tty
+		if [ ${_slepttime} -eq ${_maxwait} ]; then
+		    echo "FATAL: Could not find /dev/${_disk}${_part} or /dev/${_disk}p${_part}" > /dev/tty
+		    return 1
+		fi
+	    fi
+	done
+    done
+
+    return 0
+}
+
 get_partition()
 {
     local _partition=$(ls /dev/$1$2 /dev/$1p$2 2>/dev/null)
@@ -391,26 +455,45 @@ create_partitions()
     local _legacymsg="Allow EFI boot? Enter Yes for systems with newer components such as NVMe devices. Enter No when system hardware requires legacy BIOS boot workaround."
     local _pmbr_choice="/tmp/set_pmbr"
 
+    local _parts
     # Create BIOS boot partition
     if ! sgdisk -a${_alignment_multiple} -n1:0:+1024K -t1:EF02 -A1:set:2 /dev/${_disk}; then
             return 1
+    else
+	_parts="${_parts} 1"
     fi
 
     # Create EFI partition (Even if not used, allows user to switch to UEFI later)
     if ! sgdisk -n2:0:+524288K -t2:EF00 /dev/${_disk}; then
 	    return 1
+    else
+	_parts="${_parts} 2"
     fi
 
     if is_swap_safe; then
-        if ! sgdisk -n4:0:+16777216K -t4:8200 /dev/${_disk}; then
-            return 1
-        fi
-        wipefs -a -t zfs_member $(get_partition ${_disk} 4)
+	if ! sgdisk -n4:0:+16777216K -t4:8200 /dev/${_disk}; then
+	    return 1
+	else
+	    _parts="${_parts} 4"
+	fi
+	wipefs -a -t zfs_member $(get_partition ${_disk} 4)
     fi
 
     # Create boot pool
     if ! sgdisk -n3:0:0 -t3:BF01 /dev/${_disk}; then
 	    return 1
+    else
+	_parts="${_parts} 3"
+    fi
+
+    # Bad hardware is bad but we've seen a few users
+    # state that by the time we run `parted` command
+    # down below OR the caller of this function tries
+    # to do something with the partition(s), they won't
+    # be present. This is almost _exclusively_ related
+    # to bad hardware but we add this here as a compromise.
+    if ! wait_on_partitions ${_disk} ${_parts}; then
+	return 1
     fi
 
     if [ ! -d /sys/firmware/efi ]; then
