@@ -133,28 +133,11 @@ get_physical_disks_list()
     done
 }
 
-is_nvme_device()
-{
-    local _disk="$1"
-    case "${_disk}" in
-	*nvme*)
-	    return 0
-	    ;;
-    esac
-    return 1
-}
-
 wait_on_partitions()
 {
     if [ "$#" -lt 2 ]; then
         echo "FATAL: A disk and at least one partition number must be given" > /dev/tty
         return 1
-    elif is_nvme_device $1; then
-        if [ ! -c "/dev/${1}" ]; then
-	    # we assume the character special device exists
-	    echo "FATAL: NVMe device (/dev/${1}) not found" > /dev/tty
-	    return 1
-        fi
     elif [ ! -b "/dev/${1}" ]; then
 	# we assume the block special device exists
 	echo "FATAL: Disk device (/dev/${1}) not found" > /dev/tty
@@ -176,11 +159,6 @@ wait_on_partitions()
                 break
             elif [ -b "/dev/${_disk}p${_part}" ]; then
                 echo "SUCCESS: Found /dev/${_disk}p${_part}" > /dev/tty
-                break
-            elif [ -b "/dev/${_disk}n1p${_part}" ]; then
-		# NOTE: NVMe can have multiple namespaces (nvme0n1p1, nvme0n2p1, nvme0n3p1, etc)
-		# but we're not ready for that and expect namespace1 (nvme0n1) for now
-                echo "SUCCESS: Found /dev/${_disk}n1p${_part}" > /dev/tty
                 break
             else
                 sleep ${_sleeptime}
