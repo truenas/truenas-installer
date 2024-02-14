@@ -875,43 +875,7 @@ menu_install()
 
     _action="installation"
     _upgrade_type="format"
-    # This needs to be re-done.
-    # If we're not interactive, then we have
-    # to assume _disks is correct.
-    # If we do have more than one disk given,
-    # we should also do something if they're all
-    # freenas disks.  But how do we figure out which
-    # one to use?  The current code in disk_is_freenas
-    # is very, very heavy -- it actually backs up the
-    # data from a freenas installation.  It also does
-    # a zpool import.
-    for _disk in ${_disks}; do
-	if disk_is_freenas ${_disk} ; then
-	    if ${INTERACTIVE}; then
-		if ask_upgrade ${_disk} ; then
-		    _do_upgrade=1
-		    _action="upgrade"
-		fi
-	    else
-		if [ "${_do_upgrade}" != "0" ]; then
-		    _do_upgrade=1
-		    _action="upgrade"
-		fi
-	    fi
-	    # Ask if we want to do a format or inplace upgrade
-	    if ${INTERACTIVE}; then
-		if ask_upgrade_inplace ; then
-		    _upgrade_type="inplace"
-		fi
-	    fi
-	    break
-	fi
-    done
-    # If we haven't set _do_upgrade by now, we're not
-    # doing an upgrade.
-    if [ -z "${_do_upgrade}" ]; then
-	_do_upgrade=0
-    fi
+    _do_upgrade=0
 
     _realdisks=${_disks}
 
