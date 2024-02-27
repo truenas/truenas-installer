@@ -559,7 +559,7 @@ partition_disks()
     # Regardless of upgrade/fresh installation, if we are creating a new pool, it's going to be named after value of NEW_BOOT_POOL
     BOOT_POOL=${NEW_BOOT_POOL}
     zpool create -f -o cachefile=/tmp/zpool.cache -o ashift=12 \
-		-o compatibility=grub2 \
+		-o compatibility=grub2-2.06 \
 		-O acltype=off -O canmount=off -O compression=lz4 -O devices=off -O mountpoint=none \
 		-O normalization=formD -O relatime=on -O xattr=sa \
 		${BOOT_POOL} ${_mirror} ${_disksparts}
