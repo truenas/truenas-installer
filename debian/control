@@ -1,23 +1,31 @@
 Source: truenas-installer
 Section: admin
 Priority: optional
-Maintainer: Kris Moore <kris@ixsystems.com>
-Build-Depends: debhelper-compat (= 12)
+Maintainer: Vladimir Vinogradenko <vladimirv@ixsystems.com>
+Build-Depends: debhelper-compat (= 12),
+               dh-python,
+               python3-all,
+               python3-ixhardware,
+               python3-licenselib,
+               python3-humanfriendly,
+               python3-psutil,
+               python3-setuptools
 Standards-Version: 4.4.0
 
-Package: truenas-installer
-Package-Type: deb
+Package: python3-truenas-installer
 Architecture: all
-Section: debian-installer
-Depends: ${misc:Depends}, dialog, python3-psutil, squashfs-tools, gdisk, openzfs
-Description: TrueNAS installation for Debian
- This package provides the TrueNAS Debian installation scripts and tools.
-
-Package: truenas-installer-udeb
-Package-Type: udeb
-Architecture: all
-Section: debian-installer
-Depends: ${misc:Depends}, debootstrap, partman-base, finish-install, gawk, setserial
-Description: TrueNAS installation for Debian
- This package provides the TrueNAS Debian installation scripts and tools.
-
+Depends: ${misc:Depends},
+         ${python3:Depends},
+         dialog,
+         gdisk,
+         openzfs,
+         parted,
+         python3-ixhardware,
+         python3-licenselib,
+         python3-humanfriendly,
+         python3-psutil,
+         setserial,
+         squashfs-tools,
+         util-linux
+Description: TrueNAS Installer
+ TrueNAS Installer

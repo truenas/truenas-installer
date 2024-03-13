@@ -1,0 +1,66 @@
+from dataclasses import dataclass
+import json
+import re
+
+from .utils import run
+
+__all__ = ["list_disks"]
+
+MIN_DISK_SIZE = 8_000_000_000
+
+
+@dataclass
+class Disk:
+    name: str
+    size: int
+    model: str
+    label: str
+    removable: bool
+
+
+async def list_disks():
+    # need to settle so that lsblk output is stable
+    await run(["udevadm", "settle"])
+
+    with open("/etc/mtab") as f:
+        mtab = f.read()
+
+    disks = []
+    for disk in json.loads(
+        (await run(["lsblk", "-b", "-fJ", "-o", "name,fstype,label,log-sec,rm,size"])).stdout
+    )["blockdevices"]:
+        device = f"/dev/{disk['name']}"
+
+        if disk["name"].startswith(("dm", "loop", "md", "sr", "st")):
+            continue
+
+        if disk["size"] < MIN_DISK_SIZE:
+            continue
+
+        if re.search(fr"{device}p?[0-9]+", mtab):
+            continue
+
+        model = "Unknown Device"
+        if m := re.search("Model: (.+)", (await run(["sgdisk", "-p", device], check=False)).stdout):
+            model = m.group(1)
+
+        if disk["fstype"] is not None:
+            label = disk["fstype"]
+        else:
+            children = disk.get("children", [])
+            if zfs_members := [child for child in children if child["fstype"] == "zfs_member"]:
+                label = f"zfs-\"{zfs_members[0]['label']}\""
+            else:
+                for fstype in ["ext4", "xfs"]:
+                    if labels := [child for child in children if child["fstype"] == fstype]:
+                        label = f"{fstype}-{labels[0]['label']}"
+                        break
+                else:
+                    if labels := [child for child in children if child["fstype"] is not None]:
+                        label = "-".join(filter(None, [labels[0]["fstype"], labels[0]["label"]]))
+                    else:
+                        label = ""
+
+        disks.append(Disk(disk["name"], disk["size"], model, label, disk["rm"]))
+
+    return disks

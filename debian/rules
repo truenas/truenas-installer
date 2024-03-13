@@ -1,26 +1,6 @@
 #!/usr/bin/make -f
+export PYBUILD_NAME=truenas_installer
 
-clean:
-	rm -rf debian/truenas-installer
-	rm -rf dist/
+%:
+	dh $@ --with python3 --buildsystem=pybuild
 
-build:
-	@# Do nothing
-
-build-arch: build
-
-build-indep: build
-
-binary: binary-arch
-
-binary-arch: binary-stamp
-
-binary-indep: binary-stamp
-
-binary-stamp:
-	mkdir -p debian/truenas-installer/usr/sbin
-	chmod -R 755 debian/truenas-installer/usr
-	cp -a usr/sbin/* debian/truenas-installer/usr/sbin/
-	dh_lintian
-	dh_gencontrol
-	dh_builddeb
