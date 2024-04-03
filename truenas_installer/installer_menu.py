@@ -38,7 +38,7 @@ class InstallerMenu:
         disks = await list_disks()
 
         if not disks:
-            await dialog_msgbox("Choose destination media", "No drives available")
+            await dialog_msgbox("Choose Destination Media", "No drives available")
             return False
 
         while True:

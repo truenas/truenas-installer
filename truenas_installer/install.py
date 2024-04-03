@@ -29,7 +29,7 @@ async def install(disks, create_swap, set_pmbr, authentication, sql, callback):
             await format_disk(f"/dev/{disk}", create_swap, set_pmbr, callback)
 
         callback(0, "Creating boot pool")
-        await create_boot_pool([get_partition(f"/dev/{disk}", 3) for disk in disks])
+        await create_boot_pool([get_partition(disk, 3) for disk in disks])
         try:
             await run_installer(disks, authentication, sql, callback)
         finally:
