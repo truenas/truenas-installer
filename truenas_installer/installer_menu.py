@@ -6,7 +6,8 @@ import humanfriendly
 
 from .dialog import dialog_checklist, dialog_menu, dialog_msgbox, dialog_password, dialog_yesno
 from .disks import list_disks
-from .install import InstallError, install
+from .exception import InstallError
+from .install import install
 from .serial import serial_sql
 from .swap import is_swap_safe
 
