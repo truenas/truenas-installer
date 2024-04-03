@@ -1,11 +1,12 @@
-import os.path
-
 import asyncio
 import json
+import os
 import pathlib
 import subprocess
 import tempfile
 
+from .exception import InstallError
+from .lock import installation_lock
 from .utils import get_partition, run
 
 __all__ = ["InstallError", "install"]
@@ -13,29 +14,24 @@ __all__ = ["InstallError", "install"]
 BOOT_POOL = "boot-pool"
 
 
-class InstallError(Exception):
-    def __init__(self, message):
-        self.message = message
-        super().__init__(message)
-
-
 async def install(disks, create_swap, set_pmbr, authentication, sql, callback):
-    try:
-        if not os.path.exists("/etc/hostid"):
-            await run(["zgenhostid"])
-
-        for disk in disks:
-            callback(0, f"Formatting disk {disk}")
-            await format_disk(f"/dev/{disk}", create_swap, set_pmbr, callback)
-
-        callback(0, "Creating boot pool")
-        await create_boot_pool([get_partition(disk, 3) for disk in disks])
+    with installation_lock:
         try:
-            await run_installer(disks, authentication, sql, callback)
-        finally:
-            await run(["zpool", "export", "-f", BOOT_POOL])
-    except subprocess.CalledProcessError as e:
-        raise InstallError(f"Command {' '.join(e.cmd)} failed:\n{e.stderr.rstrip()}")
+            if not os.path.exists("/etc/hostid"):
+                await run(["zgenhostid"])
+
+            for disk in disks:
+                callback(0, f"Formatting disk {disk}")
+                await format_disk(f"/dev/{disk}", create_swap, set_pmbr, callback)
+
+            callback(0, "Creating boot pool")
+            await create_boot_pool([get_partition(disk, 3) for disk in disks])
+            try:
+                await run_installer(disks, authentication, sql, callback)
+            finally:
+                await run(["zpool", "export", "-f", BOOT_POOL])
+        except subprocess.CalledProcessError as e:
+            raise InstallError(f"Command {' '.join(e.cmd)} failed:\n{e.stderr.rstrip()}")
 
 
 async def format_disk(device, create_swap, set_pmbr, callback):
