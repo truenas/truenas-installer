@@ -91,7 +91,6 @@ class InstallerMenu:
             "Web UI Authentication Method",
             {
                 "Administrative user (admin)": self._authentication_admin,
-                "Root user (not recommended)": self._authentication_root,
                 "Configure using Web UI": self._authentication_webui,
             }
         )
@@ -135,12 +134,6 @@ class InstallerMenu:
         return await self._authentication_password(
             "admin",
             "Enter your \"admin\" user password. Root password login will be disabled.",
-        )
-
-    async def _authentication_root(self):
-        return await self._authentication_password(
-            "root",
-            "Enter your root password.",
         )
 
     async def _authentication_password(self, username, title):
