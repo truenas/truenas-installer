@@ -142,7 +142,7 @@ class InstallerMenu:
         if password is None:
             return False
 
-        return {"username": username, "password": "password"}
+        return {"username": username, "password": password}
 
     async def _authentication_webui(self):
         return None
