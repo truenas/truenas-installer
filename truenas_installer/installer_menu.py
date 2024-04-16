@@ -104,7 +104,7 @@ class InstallerMenu:
             create_swap = await dialog_yesno("Swap", "Create 16GB swap partition on boot devices?")
 
         set_pmbr = False
-        if not os.path.exists("/sys/firmware/efi"):
+        if not self.installer.efi:
             set_pmbr = await dialog_yesno(
                 "Legacy Boot",
                 (
@@ -117,7 +117,7 @@ class InstallerMenu:
         sql = await serial_sql()
 
         try:
-            await install(destination_disks, create_swap, set_pmbr, authentication_method, sql, self._callback)
+            await install(destination_disks, create_swap, set_pmbr, authentication_method, None, sql, self._callback)
         except InstallError as e:
             await dialog_msgbox("Installation Error", e.message)
             return False
