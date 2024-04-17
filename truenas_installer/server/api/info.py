@@ -11,14 +11,17 @@ __all__ = ["system_info", "list_disks", "list_network_interfaces"]
 @method(None, {
     "type": "object",
     "properties": {
-        "running": {"type": "boolean"},
+        "installation_running": {"type": "boolean"},
         "version": {"type": "string"},
         "efi": {"type": "boolean"},
     },
 })
 async def system_info(context):
+    """
+    Provides auxiliary system information.
+    """
     return {
-        "running": installation_lock.locked(),
+        "installation_running": installation_lock.locked(),
         "version": context.installer.version,
         "efi": context.installer.efi,
     }
@@ -38,6 +41,9 @@ async def system_info(context):
     },
 })
 async def list_disks(context):
+    """
+    Provides list of available disks.
+    """
     return [asdict(disk) for disk in await _list_disks()]
 
 
@@ -51,4 +57,7 @@ async def list_disks(context):
     },
 })
 async def list_network_interfaces(context):
+    """
+    Provides list of available network interfaces.
+    """
     return [asdict(interface) for interface in await _list_network_interfaces()]

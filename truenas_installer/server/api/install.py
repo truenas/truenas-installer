@@ -74,6 +74,9 @@ __all__ = ["install"]
     },
 }, None)
 async def install(context, params):
+    """
+    Performs system installation.
+    """
     try:
         await install_(params["disks"], params["create_swap"], params["set_pmbr"], params["authentication"],
                        params.get("post_install", None), await serial_sql(),

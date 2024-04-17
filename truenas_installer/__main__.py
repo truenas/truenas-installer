@@ -8,10 +8,12 @@ from ixhardware import parse_dmi
 from .installer import Installer
 from .installer_menu import InstallerMenu
 from .server import InstallerRPCServer
+from .server.doc import generate_api_doc
 
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--doc", action="store_true")
     parser.add_argument("--server", action="store_true")
     args = parser.parse_args()
 
@@ -22,7 +24,9 @@ def main():
 
     installer = Installer(version, dmi)
 
-    if args.server:
+    if args.doc:
+        generate_api_doc()
+    elif args.server:
         rpc_server = InstallerRPCServer(installer)
         app = web.Application()
         app.router.add_routes([
