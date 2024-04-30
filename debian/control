@@ -5,10 +5,13 @@ Maintainer: Vladimir Vinogradenko <vladimirv@ixsystems.com>
 Build-Depends: debhelper-compat (= 12),
                dh-python,
                python3-all,
+               python3-aiohttp-rpc,
                python3-ixhardware,
+               python3-jsonschema,
                python3-licenselib,
                python3-humanfriendly,
                python3-psutil,
+               python3-pyroute2,
                python3-setuptools
 Standards-Version: 4.4.0
 
@@ -20,10 +23,13 @@ Depends: ${misc:Depends},
          gdisk,
          openzfs,
          parted,
+         python3-aiohttp-rpc,
          python3-ixhardware,
+         python3-jsonschema,
          python3-licenselib,
          python3-humanfriendly,
          python3-psutil,
+         python3-pyroute2,
          setserial,
          squashfs-tools,
          util-linux

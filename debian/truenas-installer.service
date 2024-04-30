@@ -1,0 +1,8 @@
+[Unit]
+Description=TrueNAS Installer
+
+[Service]
+ExecStart=/usr/bin/python3 -m truenas_installer --server
+
+[Install]
+WantedBy=multi-user.target

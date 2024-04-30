@@ -14,7 +14,7 @@ __all__ = ["InstallError", "install"]
 BOOT_POOL = "boot-pool"
 
 
-async def install(disks, create_swap, set_pmbr, authentication, sql, callback):
+async def install(disks, create_swap, set_pmbr, authentication, post_install, sql, callback):
     with installation_lock:
         try:
             if not os.path.exists("/etc/hostid"):
@@ -27,7 +27,7 @@ async def install(disks, create_swap, set_pmbr, authentication, sql, callback):
             callback(0, "Creating boot pool")
             await create_boot_pool([get_partition(disk, 3) for disk in disks])
             try:
-                await run_installer(disks, authentication, sql, callback)
+                await run_installer(disks, authentication, post_install, sql, callback)
             finally:
                 await run(["zpool", "export", "-f", BOOT_POOL])
         except subprocess.CalledProcessError as e:
@@ -108,7 +108,7 @@ async def create_boot_pool(devices):
     await run(["zfs", "create", "-o", "canmount=off", "-o", "mountpoint=legacy", f"{BOOT_POOL}/grub"])
 
 
-async def run_installer(disks, authentication, sql, callback):
+async def run_installer(disks, authentication, post_install, sql, callback):
     with tempfile.TemporaryDirectory() as src:
         await run(["mount", "/cdrom/TrueNAS-SCALE.update", src, "-t", "squashfs", "-o", "loop"])
         try:
@@ -117,6 +117,7 @@ async def run_installer(disks, authentication, sql, callback):
                 "disks": disks,
                 "json": True,
                 "pool_name": BOOT_POOL,
+                "post_install": post_install,
                 "sql": sql,
                 "src": src,
             }
