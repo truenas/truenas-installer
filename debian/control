@@ -19,6 +19,7 @@ Package: python3-truenas-installer
 Architecture: all
 Depends: ${misc:Depends},
          ${python3:Depends},
+         avahi-daemon,
          dialog,
          gdisk,
          openzfs,
