@@ -9,7 +9,6 @@ from .disks import list_disks
 from .exception import InstallError
 from .install import install
 from .serial import serial_sql
-from .swap import is_swap_safe
 
 
 class InstallerMenu:
@@ -98,11 +97,6 @@ class InstallerMenu:
         if authentication_method is False:
             return False
 
-        create_swap = False
-        if all(is_swap_safe([disk for disk in disks if disk.name == destination_disk][0])
-               for destination_disk in destination_disks):
-            create_swap = await dialog_yesno("Swap", "Create 16GB swap partition on boot devices?")
-
         set_pmbr = False
         if not self.installer.efi:
             set_pmbr = await dialog_yesno(
@@ -117,7 +111,7 @@ class InstallerMenu:
         sql = await serial_sql()
 
         try:
-            await install(destination_disks, create_swap, set_pmbr, authentication_method, None, sql, self._callback)
+            await install(destination_disks, set_pmbr, authentication_method, None, sql, self._callback)
         except InstallError as e:
             await dialog_msgbox("Installation Error", e.message)
             return False
