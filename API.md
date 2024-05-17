@@ -35,7 +35,6 @@ Performs system installation.
       "type": "object",
       "required": [
         "disks",
-        "create_swap",
         "set_pmbr",
         "authentication"
       ],
@@ -46,9 +45,6 @@ Performs system installation.
           "items": {
             "type": "string"
           }
-        },
-        "create_swap": {
-          "type": "boolean"
         },
         "set_pmbr": {
           "type": "boolean"

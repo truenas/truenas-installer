@@ -15,14 +15,13 @@ __all__ = ["install"]
 
 @method({
     "type": "object",
-    "required": ["disks", "create_swap", "set_pmbr", "authentication"],
+    "required": ["disks", "set_pmbr", "authentication"],
     "additionalProperties": False,
     "properties": {
         "disks": {
             "type": "array",
             "items": {"type": "string"},
         },
-        "create_swap": {"type": "boolean"},
         "set_pmbr": {"type": "boolean"},
         "authentication": {
             "type": ["object", "null"],
@@ -78,9 +77,8 @@ async def install(context, params):
     Performs system installation.
     """
     try:
-        await install_(params["disks"], params["create_swap"], params["set_pmbr"], params["authentication"],
-                       params.get("post_install", None), await serial_sql(),
-                       functools.partial(callback, context.server))
+        await install_(params["disks"], params["set_pmbr"], params["authentication"], params.get("post_install", None),
+                       await serial_sql(), functools.partial(callback, context.server))
     except InstallError as e:
         raise Error(e.message, errno.EFAULT)
 

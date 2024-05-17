@@ -14,7 +14,7 @@ __all__ = ["InstallError", "install"]
 BOOT_POOL = "boot-pool"
 
 
-async def install(disks, create_swap, set_pmbr, authentication, post_install, sql, callback):
+async def install(disks, set_pmbr, authentication, post_install, sql, callback):
     with installation_lock:
         try:
             if not os.path.exists("/etc/hostid"):
@@ -22,7 +22,7 @@ async def install(disks, create_swap, set_pmbr, authentication, post_install, sq
 
             for disk in disks:
                 callback(0, f"Formatting disk {disk}")
-                await format_disk(f"/dev/{disk}", create_swap, set_pmbr, callback)
+                await format_disk(f"/dev/{disk}", set_pmbr, callback)
 
             callback(0, "Creating boot pool")
             await create_boot_pool([get_partition(disk, 3) for disk in disks])
@@ -34,7 +34,7 @@ async def install(disks, create_swap, set_pmbr, authentication, post_install, sq
             raise InstallError(f"Command {' '.join(e.cmd)} failed:\n{e.stderr.rstrip()}")
 
 
-async def format_disk(device, create_swap, set_pmbr, callback):
+async def format_disk(device, set_pmbr, callback):
     if (result := await run(["wipefs", "-a", device], check=False)).returncode != 0:
         callback(0, f"Warning: unable to wipe partition table for {device}: {result.stderr.rstrip()}")
 
@@ -48,10 +48,6 @@ async def format_disk(device, create_swap, set_pmbr, callback):
     # Create EFI partition (Even if not used, allows user to switch to UEFI later)
     await run(["sgdisk", "-n2:0:+524288K", "-t2:EF00", device])
 
-    if create_swap:
-        await run(["sgdisk", "-n4:0:+16777216K", "-t4:8200", device])
-        await run(["wipefs", "-a", "-t", "zfs_member", get_partition(device, 4)], check=False)
-
     # Create data partition
     await run(["sgdisk", "-n3:0:0", "-t3:BF01", device])
 
@@ -61,7 +57,7 @@ async def format_disk(device, create_swap, set_pmbr, callback):
     # to do something with the partition(s), they won't
     # be present. This is almost _exclusively_ related
     # to bad hardware, but we add this here as a compromise.
-    await wait_on_partitions(device, [1, 2, 3, 4] if create_swap else [1, 2, 3])
+    await wait_on_partitions(device, [1, 2, 3])
 
     if set_pmbr:
         await run(["parted", "-s", device, "disk_set", "pmbr_boot", "on"], check=False)
