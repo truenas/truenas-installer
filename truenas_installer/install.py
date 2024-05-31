@@ -50,13 +50,13 @@ async def format_disk(device, set_pmbr, callback):
     await run(["sgdisk", "-Z", device], check=False)
     await run(["sgdisk", "-Z", device], check=False)
 
-    # Create BIOS boot partition
+    # Create BIOS boot partition (1st partition)
     await run(["sgdisk", "-a4096", "-n1:0:+1024K", "-t1:EF02", "-A1:set:2", device])
 
-    # Create EFI partition (Even if not used, allows user to switch to UEFI later)
+    # Create EFI partition (Even if not used, allows user to switch to UEFI later) (2nd partition)
     await run(["sgdisk", "-n2:0:+524288K", "-t2:EF00", device])
 
-    # Create data partition
+    # Create data partition (3rd partition)
     await run(["sgdisk", "-n3:0:0", "-t3:BF01", device])
 
     # Bad hardware is bad, but we've seen a few users
