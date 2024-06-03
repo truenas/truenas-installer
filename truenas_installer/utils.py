@@ -37,9 +37,11 @@ async def get_partitions(
                 for partdir in filter(lambda x: x.is_dir() and x.name.startswith(device), dir_contents):
                     with open(os.path.join(partdir.path, 'partition')) as f:
                         try:
-                            # looks like {1: '/dev/sda1', 2: '/dev/nvme0n1p2'}
-                            disk_partitions[int(f.read().strip())] = f'/dev/{partdir.name}'
-                        except (KeyError, ValueError):
+                            _part = int(f.read().strip())
+                            if _part in partitions:
+                                # looks like {1: '/dev/sda1', 2: '/dev/nvme0n1p2'}
+                                disk_partitions[_part] = f'/dev/{partdir.name}'
+                        except ValueError:
                             continue
         except FileNotFoundError:
             continue
