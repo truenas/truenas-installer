@@ -1,13 +1,12 @@
 import asyncio
 import json
 import os
-import pathlib
 import subprocess
 import tempfile
 
 from .exception import InstallError
 from .lock import installation_lock
-from .utils import get_partition, run
+from .utils import get_partitions, run
 
 __all__ = ["InstallError", "install"]
 
@@ -24,8 +23,17 @@ async def install(disks, set_pmbr, authentication, post_install, sql, callback):
                 callback(0, f"Formatting disk {disk}")
                 await format_disk(f"/dev/{disk}", set_pmbr, callback)
 
+            disk_parts = list()
+            part_num = 3
+            for disk in disks:
+                found = (await get_partitions(disk, [part_num]))[part_num]
+                if found is None:
+                    raise InstallError(f"Failed to find data partition on {disk!r}")
+                else:
+                    disk_parts.append(found)
+
             callback(0, "Creating boot pool")
-            await create_boot_pool([get_partition(disk, 3) for disk in disks])
+            await create_boot_pool(disk_parts)
             try:
                 await run_installer(disks, authentication, post_install, sql, callback)
             finally:
@@ -56,28 +64,15 @@ async def format_disk(device, set_pmbr, callback):
     # down below OR the caller of this function tries
     # to do something with the partition(s), they won't
     # be present. This is almost _exclusively_ related
-    # to bad hardware, but we add this here as a compromise.
-    await wait_on_partitions(device, [1, 2, 3])
+    # to bad hardware, but we will wait up to 30 seconds
+    # for the partitions to show up in sysfs.
+    disk_parts = await get_partitions(device, [1, 2, 3], tries=30)
+    for partnum, part_device in disk_parts.items():
+        if part_device is None:
+            raise InstallError(f"Failed to find partition number {partnum} on {device!r}")
 
     if set_pmbr:
         await run(["parted", "-s", device, "disk_set", "pmbr_boot", "on"], check=False)
-
-
-async def wait_on_partitions(device, partitions):
-    if not pathlib.Path(device).is_block_device():
-        raise InstallError(f"{device} was not found or is not a block device")
-
-    partitions = [get_partition(device, partition) for partition in partitions]
-
-    for i in range(30):
-        if all(pathlib.Path(partition).is_block_device() for partition in partitions):
-            return
-
-        await asyncio.sleep(1)
-
-    for partition in partitions:
-        if not pathlib.Path(partition).is_block_device():
-            raise InstallError(f"Could not find {partition}")
 
 
 async def create_boot_pool(devices):
