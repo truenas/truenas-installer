@@ -59,6 +59,8 @@ async def authenticate(context, key):
 
     setattr(context.rpc_request.context["http_request"], "_authenticated", True)
 
+    return True
+
 
 async def adoption_middleware(request: protocol.JsonRpcRequest, handler: typing.Callable) -> protocol.JsonRpcResponse:
     if access_key is not None:
