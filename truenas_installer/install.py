@@ -26,7 +26,7 @@ async def install(disks, set_pmbr, authentication, post_install, sql, callback):
             disk_parts = list()
             part_num = 3
             for disk in disks:
-                found = (await get_partitions(disk, [part_num]))[part_num]
+                found = (await get_partitions(disk, [part_num], tries=30))[part_num]
                 if found is None:
                     raise InstallError(f"Failed to find data partition on {disk!r}")
                 else:
