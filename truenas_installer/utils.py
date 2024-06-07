@@ -48,6 +48,20 @@ async def get_partitions(
 
         await asyncio.sleep(1)
 
+    empty_parts = {k: v for k, v in disk_partitions if v is None}
+    if empty_parts:
+        # sysfs is unpredictable AT BEST when expecting it to reliably populate
+        # symlinks for the block devices after a partition has been written
+        # to it. We're seeing our CI/CD randomly "fail" because sysfs hasn't
+        # been populated after partition creation. As a last resort, we'll just
+        # haphazardly check to see if the disk partitions block device exists
+        with os.scandir('/dev/') as dir_contents:
+            for dev in filter(lambda x: x.name.startswith(device), dir_contents):
+                for partnum in empty_parts:
+                    part_str = str(partnum)
+                    if dev.name[-len(part_str):] == part_str:
+                        disk_partitions[partnum] = f'/dev/{dev.name}'
+
     return disk_partitions
 
 
