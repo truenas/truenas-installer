@@ -51,7 +51,7 @@ async def get_partitions(
 
         await asyncio.sleep(1)
 
-    empty_parts = {k: v for k, v in disk_partitions if v is None}
+    empty_parts = {k: v for k, v in disk_partitions.items() if v is None}
     if empty_parts:
         # sysfs is unpredictable AT BEST when expecting it to reliably populate
         # symlinks for the block devices after a partition has been written
