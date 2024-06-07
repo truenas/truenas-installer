@@ -1,6 +1,5 @@
 import asyncio
 import os
-import stat
 import subprocess
 
 __all__ = ["GiB", "get_partitions", "run"]
@@ -60,8 +59,8 @@ async def get_partitions(
             for dev in filter(lambda x: x.name.startswith(device), dir_contents):
                 for partnum in empty_parts:
                     part_str = str(partnum)
-                    if dev.name[-len(part_str):] == part_str and stat.S_ISBLK(os.stat(dev.path).st_mode):
-                        disk_partitions[part_num] = f'/dev/{dev.name}'
+                    if dev.name[-len(part_str):] == part_str:
+                        disk_partitions[partnum] = f'/dev/{dev.name}'
 
     return disk_partitions
 
