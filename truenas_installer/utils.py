@@ -1,4 +1,5 @@
 import asyncio
+import fcntl
 import os
 import subprocess
 
@@ -35,15 +36,15 @@ async def get_partitions(
         pass
 
     disk_partitions = {i: None for i in partitions}
-    device = device.removeprefix('/dev/')
+    devname = device.removeprefix('/dev/')
     for _try in range(tries):
         if all((disk_partitions[i] is not None for i in disk_partitions)):
             # all partitions were found on disk
             return disk_partitions
 
         try:
-            with os.scandir(f"/sys/block/{device}") as dir_contents:
-                for partdir in filter(lambda x: x.is_dir() and x.name.startswith(device), dir_contents):
+            with os.scandir(f"/sys/block/{devname}") as dir_contents:
+                for partdir in filter(lambda x: x.is_dir() and x.name.startswith(devname), dir_contents):
                     with open(os.path.join(partdir.path, 'partition')) as f:
                         try:
                             _part = int(f.read().strip())
@@ -67,14 +68,35 @@ async def get_partitions(
         # to it. We're seeing our CI/CD randomly "fail" because sysfs hasn't
         # been populated after partition creation. As a last resort, we'll just
         # haphazardly check to see if the disk partitions block device exists
+        taste_it(device)
         with os.scandir('/dev/') as dir_contents:
-            for dev in filter(lambda x: x.name.startswith(device), dir_contents):
+            for dev in filter(lambda x: x.name.startswith(devname), dir_contents):
                 for partnum in empty_parts:
                     part_str = str(partnum)
                     if dev.name[-len(part_str):] == part_str:
                         disk_partitions[partnum] = f'/dev/{dev.name}'
 
     return disk_partitions
+
+
+def taste_it(disk):
+    """Request the partition table update."""
+    BLKRRPART = 0x125f  # force reread partition table
+
+    fd = None
+    try:
+        fd = os.open(disk, os.O_WRONLY)
+    except Exception:
+        # can't open, no reason to continue
+        return
+    else:
+        try:
+            fcntl.ioctl(fd, BLKRRPART)
+        except Exception:
+            pass
+    finally:
+        if fd is not None:
+            os.close(fd)
 
 
 async def run(args, check=True):
