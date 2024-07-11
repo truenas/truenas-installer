@@ -23,9 +23,9 @@ def main():
     
     try:
         with open("/data/.vendor") as f:
-            vendor = json.loads(f.read()).get("vendor")
+            vendor = json.loads(f.read()).get("name", "TrueNAS")
     except FileNotFoundError:
-        vendor = None
+        vendor = "TrueNAS"
         
     dmi = parse_dmi()
 
