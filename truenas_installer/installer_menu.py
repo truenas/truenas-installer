@@ -20,7 +20,7 @@ class InstallerMenu:
 
     async def _main_menu(self):
         await dialog_menu(
-            f"TrueNAS {self.installer.version} Console Setup",
+            f"TrueNAS {self.installer.version} Console Setup ({self.installer.vendor})",
             {
                 "Install/Upgrade": self._install_upgrade,
                 "Shell": self._shell,

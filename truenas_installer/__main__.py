@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import json
 
 from aiohttp import web
 
@@ -19,7 +20,13 @@ def main():
 
     with open("/etc/version") as f:
         version = f.read().strip()
-
+    
+    try:
+        with open("/data/.vendor") as f:
+            vendor = json.load(f.read()).get("vendor")
+    except FileNotFoundError:
+        vendor = None
+        
     dmi = parse_dmi()
 
     installer = Installer(version, dmi)
