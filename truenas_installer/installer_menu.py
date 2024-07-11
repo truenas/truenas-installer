@@ -45,7 +45,7 @@ class InstallerMenu:
             destination_disks = await dialog_checklist(
                 "Choose Destination Media",
                 (
-                    f"Install {self.installer.vendor} to a drive. If desired, select multiple drives to provide redundancy. {self.installer.vendor}"
+                    f"Install {self.installer.vendor} to a drive. If desired, select multiple drives to provide redundancy. {self.installer.vendor} "
                     "installation drive(s) are not available for use in storage pools. Use arrow keys to navigate "
                     "options. Press spacebar to select."
                 ),
