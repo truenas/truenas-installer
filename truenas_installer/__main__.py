@@ -20,13 +20,13 @@ def main():
 
     with open("/etc/version") as f:
         version = f.read().strip()
-    
+
     try:
         with open("/data/.vendor") as f:
             vendor = json.loads(f.read()).get("name", "TrueNAS")
     except FileNotFoundError:
         vendor = "TrueNAS"
-        
+
     dmi = parse_dmi()
 
     installer = Installer(version, dmi, vendor)

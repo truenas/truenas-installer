@@ -36,6 +36,7 @@ class InstallerMenu:
 
     async def _install_upgrade_internal(self):
         disks = await list_disks()
+        vendor = self.installer.vendor
 
         if not disks:
             await dialog_msgbox("Choose Destination Media", "No drives available")
@@ -45,7 +46,7 @@ class InstallerMenu:
             destination_disks = await dialog_checklist(
                 "Choose Destination Media",
                 (
-                    f"Install {self.installer.vendor} to a drive. If desired, select multiple drives to provide redundancy. {self.installer.vendor} "
+                    f"Install {vendor} to a drive. If desired, select multiple drives to provide redundancy. {vendor} "
                     "installation drive(s) are not available for use in storage pools. Use arrow keys to navigate "
                     "options. Press spacebar to select."
                 ),
