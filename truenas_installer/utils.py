@@ -25,6 +25,15 @@ async def get_partitions(
     else:
         tries = min(tries, MAX_PARTITION_WAIT_TIME_SECS)
 
+    # by the time this function is called, partitions should have been
+    # written to the disk. However, it doesn't mean the kernel/udev has
+    # updated the various symlinks in sysfs. We'll open the block device
+    # in write mode. This should send a kernel and udev change event for
+    # the device and any partitions as well. Ideally, this will help bubble
+    # up the events so sysfs is populated before the logic below kicks in
+    with open(device, 'w'):
+        pass
+
     disk_partitions = {i: None for i in partitions}
     device = device.removeprefix('/dev/')
     for _try in range(tries):
