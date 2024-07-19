@@ -3,7 +3,9 @@ import json
 import os
 import subprocess
 import tempfile
+from typing import Callable
 
+from .disks import Disk
 from .exception import InstallError
 from .lock import installation_lock
 from .utils import get_partitions, run
@@ -13,51 +15,70 @@ __all__ = ["InstallError", "install"]
 BOOT_POOL = "boot-pool"
 
 
-async def install(disks, set_pmbr, authentication, post_install, sql, callback):
+async def install(destination_disks: list[Disk], wipe_disks: list[Disk], set_pmbr: bool, authentication: dict | None,
+                  post_install: dict | None, sql: str | None, callback: Callable):
     with installation_lock:
         try:
             if not os.path.exists("/etc/hostid"):
                 await run(["zgenhostid"])
 
-            for disk in disks:
-                callback(0, f"Formatting disk {disk}")
-                await format_disk(f"/dev/{disk}", set_pmbr, callback)
+            for disk in destination_disks:
+                callback(0, f"Formatting disk {disk.name}")
+                await format_disk(disk, set_pmbr, callback)
+
+            for disk in wipe_disks:
+                callback(0, f"Wiping disk {disk.name}")
+                await wipe_disk(disk, callback)
 
             disk_parts = list()
             part_num = 3
-            for disk in disks:
-                found = (await get_partitions(disk, [part_num]))[part_num]
+            for disk in destination_disks:
+                found = (await get_partitions(disk.device, [part_num]))[part_num]
                 if found is None:
-                    raise InstallError(f"Failed to find data partition on {disk!r}")
+                    raise InstallError(f"Failed to find data partition on {disk.name}")
                 else:
                     disk_parts.append(found)
 
             callback(0, "Creating boot pool")
             await create_boot_pool(disk_parts)
             try:
-                await run_installer(disks, authentication, post_install, sql, callback)
+                await run_installer(
+                    [disk.name for disk in destination_disks],
+                    authentication,
+                    post_install,
+                    sql,
+                    callback,
+                )
             finally:
                 await run(["zpool", "export", "-f", BOOT_POOL])
         except subprocess.CalledProcessError as e:
             raise InstallError(f"Command {' '.join(e.cmd)} failed:\n{e.stderr.rstrip()}")
 
 
-async def format_disk(device, set_pmbr, callback):
-    if (result := await run(["wipefs", "-a", device], check=False)).returncode != 0:
-        callback(0, f"Warning: unable to wipe partition table for {device}: {result.stderr.rstrip()}")
+async def wipe_disk(disk: Disk, callback: Callable):
+    for zfs_member in disk.zfs_members:
+        if (result := await run(["zpool", "labelclear", "-f", f"/dev/{zfs_member.name}"],
+                                check=False)).returncode != 0:
+            callback(0, f"Warning: unable to wipe ZFS label from {zfs_member.name}: {result.stderr.rstrip()}")
+        pass
 
-    # Erase both typical metadata area.
-    await run(["sgdisk", "-Z", device], check=False)
-    await run(["sgdisk", "-Z", device], check=False)
+    if (result := await run(["wipefs", "-a", disk.device], check=False)).returncode != 0:
+        callback(0, f"Warning: unable to wipe partition table for {disk.name}: {result.stderr.rstrip()}")
+
+    await run(["sgdisk", "-Z", disk.device], check=False)
+
+
+async def format_disk(disk: Disk, set_pmbr: bool, callback: Callable):
+    await wipe_disk(disk, callback)
 
     # Create BIOS boot partition
-    await run(["sgdisk", "-a4096", "-n1:0:+1024K", "-t1:EF02", "-A1:set:2", device])
+    await run(["sgdisk", "-a4096", "-n1:0:+1024K", "-t1:EF02", "-A1:set:2", disk.device])
 
     # Create EFI partition (Even if not used, allows user to switch to UEFI later)
-    await run(["sgdisk", "-n2:0:+524288K", "-t2:EF00", device])
+    await run(["sgdisk", "-n2:0:+524288K", "-t2:EF00", disk.device])
 
     # Create data partition
-    await run(["sgdisk", "-n3:0:0", "-t3:BF01", device])
+    await run(["sgdisk", "-n3:0:0", "-t3:BF01", disk.device])
 
     # Bad hardware is bad, but we've seen a few users
     # state that by the time we run `parted` command
@@ -66,13 +87,13 @@ async def format_disk(device, set_pmbr, callback):
     # be present. This is almost _exclusively_ related
     # to bad hardware, but we will wait up to 30 seconds
     # for the partitions to show up in sysfs.
-    disk_parts = await get_partitions(device, [1, 2, 3], tries=30)
+    disk_parts = await get_partitions(disk.device, [1, 2, 3], tries=30)
     for partnum, part_device in disk_parts.items():
         if part_device is None:
-            raise InstallError(f"Failed to find partition number {partnum} on {device!r}")
+            raise InstallError(f"Failed to find partition number {partnum} on {disk.name}")
 
     if set_pmbr:
-        await run(["parted", "-s", device, "disk_set", "pmbr_boot", "on"], check=False)
+        await run(["parted", "-s", disk.device, "disk_set", "pmbr_boot", "on"], check=False)
 
 
 async def create_boot_pool(devices):
