@@ -21,11 +21,12 @@ def main():
     with open("/etc/version") as f:
         version = f.read().strip()
 
+    vendor = "TrueNAS"
     try:
         with open("/data/.vendor") as f:
             vendor = json.loads(f.read()).get("name", "TrueNAS")
-    except FileNotFoundError:
-        vendor = "TrueNAS"
+    except Exception:
+        pass
 
     dmi = parse_dmi()
 
