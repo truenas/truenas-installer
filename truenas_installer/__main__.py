@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import json
 
 from aiohttp import web
 
@@ -20,9 +21,16 @@ def main():
     with open("/etc/version") as f:
         version = f.read().strip()
 
+    vendor = "TrueNAS"
+    try:
+        with open("/data/.vendor") as f:
+            vendor = json.loads(f.read()).get("name", "TrueNAS")
+    except Exception:
+        pass
+
     dmi = parse_dmi()
 
-    installer = Installer(version, dmi)
+    installer = Installer(version, dmi, vendor)
 
     if args.doc:
         generate_api_doc()

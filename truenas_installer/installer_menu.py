@@ -20,7 +20,7 @@ class InstallerMenu:
 
     async def _main_menu(self):
         await dialog_menu(
-            f"TrueNAS {self.installer.version} Console Setup",
+            f"{self.installer.vendor} {self.installer.version} Console Setup",
             {
                 "Install/Upgrade": self._install_upgrade,
                 "Shell": self._shell,
@@ -36,6 +36,7 @@ class InstallerMenu:
 
     async def _install_upgrade_internal(self):
         disks = await list_disks()
+        vendor = self.installer.vendor
 
         if not disks:
             await dialog_msgbox("Choose Destination Media", "No drives available")
@@ -45,7 +46,7 @@ class InstallerMenu:
             destination_disks = await dialog_checklist(
                 "Choose Destination Media",
                 (
-                    "Install TrueNAS to a drive. If desired, select multiple drives to provide redundancy. TrueNAS "
+                    f"Install {vendor} to a drive. If desired, select multiple drives to provide redundancy. {vendor} "
                     "installation drive(s) are not available for use in storage pools. Use arrow keys to navigate "
                     "options. Press spacebar to select."
                 ),
@@ -84,7 +85,7 @@ class InstallerMenu:
             "",
             "Proceed with the installation?"
         ])
-        if not await dialog_yesno("TrueNAS Installation", text):
+        if not await dialog_yesno(f"{self.installer.vendor} Installation", text):
             return False
 
         authentication_method = await dialog_menu(
@@ -119,7 +120,7 @@ class InstallerMenu:
         await dialog_msgbox(
             "Installation Succeeded",
             (
-                f"The TrueNAS installation on {', '.join(destination_disks)} succeeded!\n"
+                f"The {self.installer.vendor} installation on {', '.join(destination_disks)} succeeded!\n"
                 "Please reboot and remove the installation media."
             ),
         )
