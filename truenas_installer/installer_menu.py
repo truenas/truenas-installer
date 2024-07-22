@@ -91,7 +91,7 @@ class InstallerMenu:
         authentication_method = await dialog_menu(
             "Web UI Authentication Method",
             {
-                "Administrative user (admin)": self._authentication_admin,
+                "Administrative user (truenas_admin)": self._authentication_truenas_admin,
                 "Configure using Web UI": self._authentication_webui,
             }
         )
@@ -126,10 +126,10 @@ class InstallerMenu:
         )
         return True
 
-    async def _authentication_admin(self):
+    async def _authentication_truenas_admin(self):
         return await self._authentication_password(
-            "admin",
-            "Enter your \"admin\" user password. Root password login will be disabled.",
+            "truenas_admin",
+            "Enter your \"truenas_admin\" user password. Root password login will be disabled.",
         )
 
     async def _authentication_password(self, username, title):
