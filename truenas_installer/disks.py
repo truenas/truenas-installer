@@ -10,12 +10,23 @@ MIN_DISK_SIZE = 8_000_000_000
 
 
 @dataclass
+class ZFSMember:
+    name: str
+    pool: str
+
+
+@dataclass
 class Disk:
     name: str
     size: int
     model: str
     label: str
+    zfs_members: list[ZFSMember]
     removable: bool
+
+    @property
+    def device(self):
+        return f"/dev/{self.name}"
 
 
 async def list_disks():
@@ -44,12 +55,15 @@ async def list_disks():
         if m := re.search("Model: (.+)", (await run(["sgdisk", "-p", device], check=False)).stdout):
             model = m.group(1)
 
+        zfs_members = []
         if disk["fstype"] is not None:
             label = disk["fstype"]
         else:
             children = disk.get("children", [])
-            if zfs_members := [child for child in children if child["fstype"] == "zfs_member"]:
-                label = f"zfs-\"{zfs_members[0]['label']}\""
+            if zfs_members := [ZFSMember(child["name"], child["label"])
+                               for child in children
+                               if child["fstype"] == "zfs_member"]:
+                label = ", ".join([f"zfs-\"{zfs_member.pool}\"" for zfs_member in zfs_members])
             else:
                 for fstype in ["ext4", "xfs"]:
                     if labels := [child for child in children if child["fstype"] == fstype]:
@@ -61,6 +75,6 @@ async def list_disks():
                     else:
                         label = ""
 
-        disks.append(Disk(disk["name"], disk["size"], model, label, disk["rm"]))
+        disks.append(Disk(disk["name"], disk["size"], model, label, zfs_members, disk["rm"]))
 
     return disks

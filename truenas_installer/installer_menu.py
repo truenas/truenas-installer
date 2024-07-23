@@ -5,7 +5,7 @@ import sys
 import humanfriendly
 
 from .dialog import dialog_checklist, dialog_menu, dialog_msgbox, dialog_password, dialog_yesno
-from .disks import list_disks
+from .disks import Disk, list_disks
 from .exception import InstallError
 from .install import install
 from .serial import serial_sql
@@ -72,11 +72,31 @@ class InstallerMenu:
                 )
                 continue
 
+            wipe_disks = [
+                disk.name
+                for disk in disks
+                if (
+                    any(zfs_member.pool == "boot-pool" for zfs_member in disk.zfs_members) and
+                    disk.name not in destination_disks
+                )
+            ]
+            if wipe_disks:
+                # The presence of multiple `boot-pool` disks with different guids leads to boot pool import error
+                text = "\n".join([
+                    f"Disk(s) {', '.join(wipe_disks)} contain existing TrueNAS boot pool, but they were not "
+                    f"selected for TrueNAS installation. This configuration will not work unless these disks "
+                    "are erased.",
+                    "",
+                    f"Proceed with erasing {', '.join(wipe_disks)}?"
+                ])
+                if not await dialog_yesno("TrueNAS Installation", text):
+                    continue
+
             break
 
         text = "\n".join([
             "WARNING:",
-            f"- This erases ALL partitions and data on {', '.join(destination_disks)}.",
+            f"- This erases ALL partitions and data on {', '.join(sorted(wipe_disks + destination_disks))}.",
             f"- {', '.join(destination_disks)} will be unavailable for use in storage pools.",
             "",
             "NOTE:",
@@ -112,7 +132,15 @@ class InstallerMenu:
         sql = await serial_sql()
 
         try:
-            await install(destination_disks, set_pmbr, authentication_method, None, sql, self._callback)
+            await install(
+                self._select_disks(disks, destination_disks),
+                self._select_disks(disks, wipe_disks),
+                set_pmbr,
+                authentication_method,
+                None,
+                sql,
+                self._callback,
+            )
         except InstallError as e:
             await dialog_msgbox("Installation Error", e.message)
             return False
@@ -125,6 +153,10 @@ class InstallerMenu:
             ),
         )
         return True
+
+    def _select_disks(self, disks: list[Disk], disks_names: list[str]):
+        disks_dict = {disk.name: disk for disk in disks}
+        return [disks_dict[disk_name] for disk_name in disks_names]
 
     async def _authentication_truenas_admin(self):
         return await self._authentication_password(

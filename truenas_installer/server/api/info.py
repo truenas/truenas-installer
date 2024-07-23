@@ -36,6 +36,16 @@ async def system_info(context):
             "size": {"type": "number"},
             "model": {"type": "string"},
             "label": {"type": "string"},
+            "zfs_members": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "pool": {"type": "string"},
+                    },
+                },
+            },
             "removable": {"type": "boolean"},
         },
     },
