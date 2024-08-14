@@ -41,14 +41,11 @@ async def list_disks():
         (await run(["lsblk", "-b", "-fJ", "-o", "name,fstype,label,rm,size"])).stdout
     )["blockdevices"]:
         device = f"/dev/{disk['name']}"
-
         if disk["name"].startswith(("dm", "loop", "md", "sr", "st")):
             continue
-
-        if disk["size"] < MIN_DISK_SIZE:
+        elif disk["size"] < MIN_DISK_SIZE:
             continue
-
-        if re.search(fr"{device}p?[0-9]+", mtab):
+        elif re.search(fr"{device}p?[0-9]+", mtab):
             continue
 
         model = "Unknown Device"
