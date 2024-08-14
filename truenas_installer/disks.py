@@ -38,19 +38,14 @@ async def list_disks():
 
     disks = []
     for disk in json.loads(
-        (await run(["lsblk", "-b", "-fJ", "-o", "name,fstype,label,rm,size"])).stdout
+        (await run(["lsblk", "-b", "-fJ", "-o", "name,fstype,label,rm,size,model"])).stdout
     )["blockdevices"]:
-        device = f"/dev/{disk['name']}"
         if disk["name"].startswith(("dm", "loop", "md", "sr", "st")):
             continue
         elif disk["size"] < MIN_DISK_SIZE:
             continue
-        elif re.search(fr"{device}p?[0-9]+", mtab):
+        elif re.search(fr"/dev/{disk["model"]}p?[0-9]+", mtab):
             continue
-
-        model = "Unknown Model"
-        if m := re.search("Model: (.+)", (await run(["sgdisk", "-p", device], check=False)).stdout):
-            model = m.group(1)
 
         zfs_members = []
         if disk["fstype"] is not None:
@@ -72,6 +67,15 @@ async def list_disks():
                     else:
                         label = ""
 
-        disks.append(Disk(disk["name"], disk["size"], model, label, zfs_members, disk["rm"]))
+        disks.append(
+            Disk(
+                disk["name"],
+                disk["size"],
+                disk["model"] or "Unknown Model",
+                label,
+                zfs_members,
+                disk["rm"]
+            )
+        )
 
     return disks
