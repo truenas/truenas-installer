@@ -78,4 +78,8 @@ async def list_disks():
             )
         )
 
-    return disks
+    # we sort the disks by name because `nvme` comes before `sd*`
+    # and our appliances have nvme boot drives so by putting nvme
+    # devices up top in the installer, it provides a convenience
+    # for other departments
+    return sorted(disks, key=lambda x: x.name)
