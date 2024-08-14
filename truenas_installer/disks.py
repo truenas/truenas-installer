@@ -38,7 +38,7 @@ async def list_disks():
 
     disks = []
     for disk in json.loads(
-        (await run(["lsblk", "-b", "-fJ", "-o", "name,fstype,label,log-sec,rm,size"])).stdout
+        (await run(["lsblk", "-b", "-fJ", "-o", "name,fstype,label,rm,size"])).stdout
     )["blockdevices"]:
         device = f"/dev/{disk['name']}"
 
