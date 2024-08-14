@@ -48,7 +48,7 @@ async def list_disks():
         elif re.search(fr"{device}p?[0-9]+", mtab):
             continue
 
-        model = "Unknown Device"
+        model = "Unknown Model"
         if m := re.search("Model: (.+)", (await run(["sgdisk", "-p", device], check=False)).stdout):
             model = m.group(1)
 
