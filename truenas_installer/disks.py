@@ -44,7 +44,7 @@ async def list_disks():
             continue
         elif disk["size"] < MIN_DISK_SIZE:
             continue
-        elif re.search(fr"/dev/{disk["name"]}p?[0-9]+", mtab):
+        elif re.search(fr"/dev/{disk['name']}p?[0-9]+", mtab):
             continue
 
         zfs_members = []
