@@ -108,15 +108,18 @@ class InstallerMenu:
         if not await dialog_yesno(f"{self.installer.vendor} Installation", text):
             return False
 
-        authentication_method = await dialog_menu(
-            "Web UI Authentication Method",
-            {
-                "Administrative user (truenas_admin)": self._authentication_truenas_admin,
-                "Configure using Web UI": self._authentication_webui,
-            }
-        )
-        if authentication_method is False:
-            return False
+        if vendor == "HexOS":
+            authentication_method = await self._authentication_truenas_admin()
+        else:
+            authentication_method = await dialog_menu(
+                "Web UI Authentication Method",
+                {
+                    "Administrative user (truenas_admin)": self._authentication_truenas_admin,
+                    "Configure using Web UI": self._authentication_webui,
+                }
+            )
+            if authentication_method is False:
+                return False
 
         set_pmbr = False
         if not self.installer.efi:
