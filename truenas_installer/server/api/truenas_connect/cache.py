@@ -15,8 +15,11 @@ def default_tnc_config() -> dict:
         'leca_service_base_url': 'https://leca-server.dev.ixsystems.net/',
         'tnc_base_url': 'https://truenas.connect.dev.ixsystems.net/',
         'claim_token': None,
-        'claim_token_expiration': None,
         'registration_finalization_expiration': None,
+        'initialization_in_progress': False,
+        'initialization_completed': False,
+        'system_id': None,
+        'truenas_version': None,
         'enabled': False,
     }
 

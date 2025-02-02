@@ -1,0 +1,54 @@
+import errno
+import time
+import uuid
+
+from truenas_installer.server.error import Error
+from truenas_installer.server.method import method
+
+from .cache import tnc_config, update_tnc_config
+from .schema import TNC_CONFIG_SCHEMA
+
+
+@method({
+    'type': 'object',
+    'properties': {
+        'ips': {
+            'type': 'array',
+            'items': {
+                'oneOf': [
+                    {'type': 'string', 'format': 'ipv4'},
+                    {'type': 'string', 'format': 'ipv6'},
+                ],
+            },
+        },
+        'enabled': {'type': 'boolean'},
+        'account_service_base_url': {'type': 'string'},
+        'leca_service_base_url': {'type': 'string'},
+        'tnc_base_url': {'type': 'string'},
+    },
+    'required': ['enabled', 'ips'],
+}, TNC_CONFIG_SCHEMA)
+async def enable_tnc(context, data):
+    """
+    Enable and configure TrueNAS Connect.
+    """
+    if data['enabled'] and not data['ips']:
+        raise Error('No IP addresses provided', errno.EINVAL)
+
+    # FIXME: For now let's just allow updating properties only once
+    config = tnc_config()
+    if config['enabled'] and any(data[k] != config[k] for k in data):
+        raise Error('Configuration can only be updated once', errno.EINVAL)
+
+    # FIXME: There are a couple of more edge cases to be handled with this conditional
+    if data['enabled'] and config['enabled'] is False:
+        # Let's generate claim token
+        config.update({
+            'claim_token': str(uuid.uuid4()),
+            'claim_token_expiration': time.time() + (45 * 60),  # 45 min expiration
+            'system_id': str(uuid.uuid4()),
+            'truenas_version': context.server.installer.version,
+        })
+
+    config |= data
+    return update_tnc_config(config)
