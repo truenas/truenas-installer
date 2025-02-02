@@ -1,12 +1,14 @@
 import errno
 import time
 import uuid
+from urllib.parse import urlencode
 
 from truenas_installer.server.error import Error
 from truenas_installer.server.method import method
 
 from .cache import tnc_config, update_tnc_config
 from .schema import TNC_CONFIG_SCHEMA
+from .urls import get_registration_uri
 
 
 @method({
@@ -48,7 +50,24 @@ async def enable_tnc(context, data):
             'claim_token_expiration': time.time() + (45 * 60),  # 45 min expiration
             'system_id': str(uuid.uuid4()),
             'truenas_version': context.server.installer.version,
+            'initialization_in_progress': True,
         })
 
     config |= data
     return update_tnc_config(config)
+
+
+@method(None, {'type': 'string'})
+async def tnc_registration_uri(context):
+    config = tnc_config()
+    if config['initialization_in_progress'] is False:
+        raise Error('TrueNAS Connect needs to be enabled first', errno.EINVAL)
+
+    query_params = {
+        'version': config['truenas_version'],
+        'model': 'UNKNOWN',  # FIXME: Obviously fix this
+        'system_id': config['system_id'],
+        'token': config['claim_token'],
+    }
+
+    return f'{get_registration_uri(config)}?{urlencode(query_params)}'
