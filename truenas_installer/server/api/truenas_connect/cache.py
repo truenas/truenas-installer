@@ -18,6 +18,7 @@ def default_tnc_config() -> dict:
         'registration_finalization_expiration': None,
         'initialization_in_progress': False,
         'initialization_completed': False,
+        'initialization_error': None,
         'system_id': None,
         'truenas_version': None,
         'enabled': False,
