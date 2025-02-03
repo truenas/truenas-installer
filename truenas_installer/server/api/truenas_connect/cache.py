@@ -9,6 +9,7 @@ def default_tnc_config() -> dict:
         'jwt_token': None,
         'registration_details': {},
         'ips': [],
+        'csr_public_key': None,
         'certificate_public_key': None,
         'certificate_private_key': None,
         'account_service_base_url': 'https://account-service.dev.ixsystems.net/',
