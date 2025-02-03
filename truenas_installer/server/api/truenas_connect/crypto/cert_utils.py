@@ -1,4 +1,4 @@
-from .cert_impl import generate_certificate_signing_request
+from .csr import generate_certificate_signing_request
 
 
 CERT_BOT_EMAIL = 'cert-bot@ixsystems.com'
