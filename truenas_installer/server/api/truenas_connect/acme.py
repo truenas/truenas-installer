@@ -1,7 +1,10 @@
-from .acme_utils import normalize_acme_config
+from acme_utils.issue_cert import issue_certificate
+
 from .cache import tnc_config, update_tnc_config
 from .cert_utils import generate_csr, get_hostnames_from_hostname_config
 from .hostname import hostname_config, register_update_ips
+from .tnc_acme_utils import normalize_acme_config
+from .tnc_authenticator import TrueNASConnectAuthenticator
 from .urls import get_acme_config_url
 from .utils import auth_headers, call, get_account_id_and_system_id
 
@@ -38,5 +41,10 @@ async def create_cert():
 
     hostnames = get_hostnames_from_hostname_config(tnc_hostname_config)
     csr, private_key = generate_csr(hostnames)
-    dns_mapping = {f'DNS:{hostname}': hostname for hostname in hostnames}
-
+    authenticator_mapping = {f'DNS:{hostname}': TrueNASConnectAuthenticator() for hostname in hostnames}
+    final_order = issue_certificate(tnc_acme_config['acme_details'], csr, authenticator_mapping)
+    update_tnc_config({
+        'csr_public_key': csr,
+        'certificate_public_key': final_order.fullchain_pem,
+        'certificate_private_key': private_key,
+    })

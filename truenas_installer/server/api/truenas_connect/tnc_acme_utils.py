@@ -5,7 +5,7 @@ from cryptography.hazmat.primitives import serialization
 from josepy import JWKRSA
 from jsonschema import validate as jsonschema_validate, ValidationError as JSONValidationError
 
-from .crypto.cert_utils import CERT_BOT_EMAIL
+from .cert_utils import CERT_BOT_EMAIL
 
 
 ACME_CONFIG_JSON_SCHEMA = {
