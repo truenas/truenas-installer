@@ -36,25 +36,24 @@ async def finalize_registration():
                     if diff := {'account_id', 'system_id'} - set(decoded_token):
                         error = f'JWT token does not contain required fields: {diff!r}'
 
-                if error:
-                    config.update({
-                        'initialization_in_progress': False,
-                        'initialization_error': error,
-                    })
-                else:
-                    config.update({
-                        'jwt_token': token,
-                        'registration_details': decoded_token,
-                    })
-                    # TODO: Trigger acme task
+            if error:
+                config.update({
+                    'initialization_in_progress': False,
+                    'initialization_error': error,
+                })
+            else:
+                config.update({
+                    'jwt_token': token,
+                    'registration_details': decoded_token,
+                })
+                # TODO: Trigger acme task
 
                 update_tnc_config(config)
                 return
 
         await asyncio.sleep(60)
     else:
-        config.update({
+        update_tnc_config(config | {
             'initialization_in_progress': False,
             'initialization_error': 'Timed out while waiting for finalizing registration',
         })
-        update_tnc_config(config)
