@@ -1,7 +1,7 @@
 import asyncio
 import time
 
-import jwt  # FIXME: Bring in jwt package dep
+import jwt
 
 from .cache import tnc_config, update_tnc_config
 from .urls import get_registration_finalization_uri
