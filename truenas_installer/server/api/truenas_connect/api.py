@@ -1,3 +1,4 @@
+import asyncio
 import errno
 import time
 import uuid
@@ -7,8 +8,12 @@ from truenas_installer.server.error import Error
 from truenas_installer.server.method import method
 
 from .cache import tnc_config, update_tnc_config
+from .finalize_registration import finalize_registration
 from .schema import TNC_CONFIG_SCHEMA
 from .urls import get_registration_uri
+
+
+__all__ = ['enable_tnc', 'tnc_registration_uri']
 
 
 @method({
@@ -17,10 +22,7 @@ from .urls import get_registration_uri
         'ips': {
             'type': 'array',
             'items': {
-                'oneOf': [
-                    {'type': 'string', 'format': 'ipv4'},
-                    {'type': 'string', 'format': 'ipv6'},
-                ],
+                'type': 'string',  # FIMXE: Validate this to be proper IP Addreses
             },
         },
         'enabled': {'type': 'boolean'},
@@ -43,6 +45,7 @@ async def enable_tnc(context, data):
         raise Error('Configuration can only be updated once', errno.EINVAL)
 
     # FIXME: There are a couple of more edge cases to be handled with this conditional
+    claim_token_generated = False
     if data['enabled'] and config['enabled'] is False:
         # Let's generate claim token
         config.update({
@@ -52,9 +55,13 @@ async def enable_tnc(context, data):
             'truenas_version': context.server.installer.version,
             'initialization_in_progress': True,
         })
+        claim_token_generated = True
 
-    config |= data
-    return update_tnc_config(config)
+    config = update_tnc_config(config | data)
+    if claim_token_generated:
+        asyncio.get_event_loop().create_task(finalize_registration())
+
+    return config
 
 
 @method(None, {'type': 'string'})

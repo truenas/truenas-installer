@@ -3,6 +3,7 @@ import time
 
 import jwt
 
+from .acme import create_cert
 from .cache import tnc_config, update_tnc_config
 from .urls import get_registration_finalization_uri
 from .utils import call as tnc_call
@@ -17,7 +18,7 @@ async def poll_once(config: dict) -> dict:
 
 async def finalize_registration():
     config = tnc_config()
-    while time.time() < config['registration_finalization_expiration']:
+    while time.time() < config['claim_token_expiration']:
         error = None
         status = await poll_once(config)
         if status['error'] is None:
@@ -49,6 +50,7 @@ async def finalize_registration():
                 # TODO: Trigger acme task
 
                 update_tnc_config(config)
+                await create_cert()
                 return
 
         await asyncio.sleep(60)
