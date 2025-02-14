@@ -22,7 +22,7 @@ def get_leca_cleanup_url(tnc_config: dict) -> str:
 
 
 def get_registration_uri(tnc_config: dict) -> str:
-    return urllib.parse.urljoin(tnc_config['tnc_base_url'], f'system/register')
+    return urllib.parse.urljoin(tnc_config['tnc_base_url'], 'system/register')
 
 
 def get_registration_finalization_uri(tnc_config: dict) -> str:
