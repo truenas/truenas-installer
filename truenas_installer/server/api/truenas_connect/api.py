@@ -7,13 +7,21 @@ from urllib.parse import urlencode
 from truenas_installer.server.error import Error
 from truenas_installer.server.method import method
 
-from .cache import tnc_config, update_tnc_config
+from .cache import tnc_config as get_tnc_config, update_tnc_config
 from .finalize_registration import finalize_registration
 from .schema import TNC_CONFIG_SCHEMA
 from .urls import get_registration_uri
 
 
-__all__ = ['enable_tnc', 'tnc_registration_uri']
+__all__ = ['configure_tnc', 'tnc_registration_uri']
+
+
+@method(None, TNC_CONFIG_SCHEMA)
+async def tnc_config(context):
+    """
+    Get TrueNAS Connect configuration.
+    """
+    return get_tnc_config()
 
 
 @method({
@@ -32,7 +40,7 @@ __all__ = ['enable_tnc', 'tnc_registration_uri']
     },
     'required': ['enabled', 'ips'],
 }, TNC_CONFIG_SCHEMA)
-async def enable_tnc(context, data):
+async def configure_tnc(context, data):
     """
     Enable and configure TrueNAS Connect.
     """
@@ -40,7 +48,7 @@ async def enable_tnc(context, data):
         raise Error('No IP addresses provided', errno.EINVAL)
 
     # FIXME: For now let's just allow updating properties only once
-    config = tnc_config()
+    config = get_tnc_config()
     if config['enabled'] and any(data[k] != config[k] for k in data):
         raise Error('Configuration can only be updated once', errno.EINVAL)
 
@@ -66,7 +74,7 @@ async def enable_tnc(context, data):
 
 @method(None, {'type': 'string'})
 async def tnc_registration_uri(context):
-    config = tnc_config()
+    config = get_tnc_config()
     if config['initialization_in_progress'] is False:
         raise Error('TrueNAS Connect needs to be enabled first', errno.EINVAL)
 
