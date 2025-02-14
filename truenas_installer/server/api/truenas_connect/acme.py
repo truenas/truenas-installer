@@ -47,4 +47,6 @@ async def create_cert():
         'csr_public_key': csr,
         'certificate_public_key': final_order.fullchain_pem,
         'certificate_private_key': private_key,
+        'initialization_completed': True,
+        'initialization_in_progress': False,
     })
