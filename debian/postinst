@@ -1,0 +1,14 @@
+#!/bin/bash
+set -e
+
+case "$1" in
+    configure)
+        # Remove default NGINX site configs
+        rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default
+
+        # Reload NGINX to apply changes
+        systemctl reload nginx || true
+        ;;
+esac
+
+exit 0
