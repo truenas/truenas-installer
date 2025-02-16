@@ -41,7 +41,7 @@ def main():
             web.get("/", rpc_server.handle_http_request),
         ])
         app.on_shutdown.append(rpc_server.on_shutdown)
-        web.run_app(app, port=80)
+        web.run_app(app, port=8080)
     else:
         loop = asyncio.get_event_loop()
         loop.create_task(InstallerMenu(installer).run())
