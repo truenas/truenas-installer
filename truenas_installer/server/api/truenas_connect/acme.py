@@ -29,7 +29,7 @@ async def acme_config() -> dict:
     return resp | {'tnc_configured': True}
 
 
-async def create_cert():
+async def create_cert() -> dict:
     await register_update_ips()
     tnc_hostname_config = await hostname_config()
     if tnc_hostname_config['error']:
@@ -43,7 +43,7 @@ async def create_cert():
     csr, private_key = generate_csr(hostnames)
     authenticator_mapping = {f'DNS:{hostname}': TrueNASConnectAuthenticator() for hostname in hostnames}
     final_order = issue_certificate(tnc_acme_config['acme_details'], csr, authenticator_mapping)
-    update_tnc_config({
+    return update_tnc_config({
         'csr_public_key': csr,
         'certificate_public_key': final_order.fullchain_pem,
         'certificate_private_key': private_key,
