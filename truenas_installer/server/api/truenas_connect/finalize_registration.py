@@ -5,6 +5,7 @@ import jwt
 
 from .acme import create_cert
 from .cache import tnc_config, update_tnc_config
+from .nginx_utils import update_nginx_conf
 from .urls import get_registration_finalization_uri
 from .utils import call as tnc_call
 
@@ -51,6 +52,7 @@ async def finalize_registration():
 
                 update_tnc_config(config)
                 await create_cert()
+                await update_nginx_conf()
                 return
 
         await asyncio.sleep(60)
