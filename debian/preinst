@@ -1,0 +1,8 @@
+#!/bin/sh -ex
+
+mkdir -p /var/trash
+for file in \
+    /etc/nginx/nginx.conf
+do
+    dpkg-divert --add --package truenas-installer --rename --divert "/var/trash/$(echo "$file" | sed "s/\//_/g")" "$file"
+done
