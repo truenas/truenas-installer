@@ -25,7 +25,7 @@ def default_tnc_config() -> dict:
     }
 
 
-def tnc_config() -> dict:
+def get_tnc_config() -> dict:
     try:
         with open(CACHE_FILE, 'r') as f:
             return json.loads(f.read())
@@ -34,7 +34,7 @@ def tnc_config() -> dict:
 
 
 def update_tnc_config(data: dict) -> dict:
-    config = tnc_config() | data
+    config = get_tnc_config() | data
     with open(CACHE_FILE, 'w') as f:
         f.write(json.dumps(config))
 
