@@ -14,7 +14,7 @@ from .registration import finalize_registration
 from .schema import TNC_CONFIG_SCHEMA
 
 
-__all__ = ['tnc_config', 'configure_tnc']
+__all__ = ['tnc_config', 'configure_tnc', 'tnc_registration_uri']
 
 
 CONFIGURED_TNC: bool = False
