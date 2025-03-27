@@ -1,3 +1,4 @@
+import asyncio
 import errno
 import time
 import uuid
@@ -9,6 +10,7 @@ from truenas_installer.server.error import Error
 from truenas_installer.server.method import method
 
 from .cache import get_tnc_config, update_tnc_config
+from .registration import finalize_registration
 from .schema import TNC_CONFIG_SCHEMA
 
 
@@ -56,21 +58,17 @@ async def configure_tnc(context, data):
     if data['enabled']:
         CONFIGURED_TNC = True
 
-    config = get_tnc_config() | data
-    claim_token_generated = False
+    config = update_tnc_config(data)
     if config['enabled']:
         # Let's generate claim token
-        config.update({
+        update_tnc_config({
             'claim_token': str(uuid.uuid4()),
             'claim_token_expiration': time.time() + (45 * 60),  # 45 min expiration
             'system_id': str(uuid.uuid4()),
             'truenas_version': context.server.installer.version,
             'initialization_in_progress': True,
         })
-        claim_token_generated = True
-
-    update_tnc_config(config | data)
-    # TODO: Let's kick of the registration process
+        asyncio.get_event_loop().create_task(finalize_registration())
 
     return get_tnc_config()
 
