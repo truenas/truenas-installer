@@ -13,11 +13,13 @@ NGINX_CERT_CONF = '/etc/nginx/conf.d/cert.conf'
 
 def generate_cert_files(crt: str, key: str):
     os.makedirs(CERT_DIR, exist_ok=True)
-    for path, data in (
-        (os.path.join(CERT_DIR, CERT_PUBLIC_KEY), crt),
-        (os.path.join(CERT_DIR, CERT_PRIVATE_KEY), key),
+    for path, data, perms in (
+        (os.path.join(CERT_DIR, CERT_PUBLIC_KEY), crt, None),
+        (os.path.join(CERT_DIR, CERT_PRIVATE_KEY), key, 0o400),
     ):
         with open(path, 'w') as f:
+            if perms is not None:
+                os.fchmod(f.fileno(), perms)
             f.write(data)
 
 
