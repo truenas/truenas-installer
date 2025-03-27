@@ -7,6 +7,7 @@ from truenas_connect_utils.urls import get_registration_finalization_uri
 
 from .acme import finalize_steps_after_registration
 from .cache import get_tnc_config, update_tnc_config
+from .nginx import update_nginx_conf
 
 
 async def poll_once(config: dict) -> dict:
@@ -51,6 +52,7 @@ async def finalize_registration():
                 })
                 update_tnc_config(config)
                 await finalize_steps_after_registration()
+                await asyncio.to_thread(update_nginx_conf)
 
             # We either got the cert created or we errored out above
             return
