@@ -5,6 +5,7 @@ import jwt
 from truenas_connect_utils.request import call
 from truenas_connect_utils.urls import get_registration_finalization_uri
 
+from .acme import finalize_steps_after_registration
 from .cache import get_tnc_config, update_tnc_config
 
 
@@ -49,6 +50,7 @@ async def finalize_registration():
                     'registration_details': decoded_token,
                 })
                 update_tnc_config(config)
+                await finalize_steps_after_registration()
 
             # We either got the cert created or we errored out above
             return
