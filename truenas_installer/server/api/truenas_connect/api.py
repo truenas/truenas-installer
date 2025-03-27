@@ -1,6 +1,9 @@
 import errno
 import time
 import uuid
+from urllib.parse import urlencode
+
+from truenas_connect_utils.urls import get_registration_uri
 
 from truenas_installer.server.error import Error
 from truenas_installer.server.method import method
@@ -70,3 +73,19 @@ async def configure_tnc(context, data):
     # TODO: Let's kick of the registration process
 
     return get_tnc_config()
+
+
+@method(None, {'type': 'string'})
+async def tnc_registration_uri(context):
+    config = get_tnc_config()
+    if config['initialization_in_progress'] is False:
+        raise Error('TrueNAS Connect needs to be enabled first', errno.EINVAL)
+
+    query_params = {
+        'version': config['truenas_version'],
+        'model': 'UNKNOWN',  # FIXME: Obviously fix this
+        'system_id': config['system_id'],
+        'token': config['claim_token'],
+    }
+
+    return f'{get_registration_uri(config)}?{urlencode(query_params)}'
