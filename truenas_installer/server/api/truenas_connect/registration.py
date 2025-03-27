@@ -2,6 +2,7 @@ import asyncio
 import time
 
 import jwt
+from truenas_connect_utils.exceptions import CallError
 from truenas_connect_utils.request import call
 from truenas_connect_utils.urls import get_registration_finalization_uri
 
@@ -51,8 +52,23 @@ async def finalize_registration():
                     'registration_details': decoded_token,
                 })
                 update_tnc_config(config)
-                await finalize_steps_after_registration()
-                await asyncio.to_thread(update_nginx_conf)
+                try:
+                    await finalize_steps_after_registration()
+                except CallError as e:
+                    update_tnc_config({
+                        'initialization_completed': True,
+                        'initialization_in_progress': False,
+                        'initialization_error': f'Failed to generate certificate: {e}',
+                    })
+                else:
+                    try:
+                        await asyncio.to_thread(update_nginx_conf)
+                    except Exception as e:
+                        update_tnc_config({
+                            'initialization_completed': True,
+                            'initialization_in_progress': False,
+                            'initialization_error': f'Failed to update nginx config: {e}',
+                        })
 
             # We either got the cert created or we errored out above
             return
