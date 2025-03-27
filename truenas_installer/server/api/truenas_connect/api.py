@@ -4,6 +4,7 @@ import time
 import uuid
 from urllib.parse import urlencode
 
+from truenas_connect_utils.install_schema import TNC_CONFIG_SCHEMA
 from truenas_connect_utils.urls import get_registration_uri
 
 from truenas_installer.server.error import Error
@@ -11,7 +12,6 @@ from truenas_installer.server.method import method
 
 from .cache import get_tnc_config, update_tnc_config
 from .registration import finalize_registration
-from .schema import TNC_CONFIG_SCHEMA
 
 
 __all__ = ['tnc_config', 'configure_tnc', 'tnc_registration_uri']
