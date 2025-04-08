@@ -11,6 +11,7 @@ __all__ = ["InstallerRPCServer"]
 class InstallerRPCServer(aiohttp_rpc.WsJsonRpcServer):
     def __init__(self, installer):
         self.installer = installer
+        self.configured_tnc = False
         super().__init__(
             middlewares=(
                 adoption_middleware,

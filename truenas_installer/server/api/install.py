@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import errno
 import functools
 
@@ -94,7 +95,7 @@ async def install(context, params):
     except KeyError as e:
         raise Error(f"Disk {e.args[0]!r} does not exist", errno.EFAULT)
 
-    post_install = params.get("post_install") or {}
+    post_install = copy.deepcopy(params.get("post_install") or {})
     post_install["tnc_config"] = get_tnc_config()
 
     try:

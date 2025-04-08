@@ -17,9 +17,6 @@ from .registration import finalize_registration
 __all__ = ['tnc_config', 'configure_tnc', 'tnc_registration_uri']
 
 
-CONFIGURED_TNC: bool = False
-
-
 @method(None, TNC_CONFIG_SCHEMA)
 async def tnc_config(context):
     """
@@ -48,15 +45,14 @@ async def configure_tnc(context, data):
     """
     Enable and configure TrueNAS Connect.
     """
-    global CONFIGURED_TNC
-    if CONFIGURED_TNC is True:
+    if context.server.configured_tnc is True:
         raise Error('Configuration can only be updated once', errno.EINVAL)
 
     if data['enabled'] and not data['ips']:
         raise Error('No IP addresses provided', errno.EINVAL)
 
     if data['enabled']:
-        CONFIGURED_TNC = True
+        context.server.configured_tnc = True
 
     config = update_tnc_config(data)
     if config['enabled']:
