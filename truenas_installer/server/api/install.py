@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import errno
 import functools
 
@@ -8,6 +9,7 @@ from truenas_installer.disks import list_disks
 from truenas_installer.exception import InstallError
 from truenas_installer.install import install as install_
 from truenas_installer.serial import serial_sql
+from truenas_installer.server.api.truenas_connect.cache import get_tnc_config
 from truenas_installer.server.error import Error
 from truenas_installer.server.method import method
 
@@ -93,13 +95,16 @@ async def install(context, params):
     except KeyError as e:
         raise Error(f"Disk {e.args[0]!r} does not exist", errno.EFAULT)
 
+    post_install = copy.deepcopy(params.get("post_install") or {})
+    post_install["tnc_config"] = get_tnc_config()
+
     try:
         await install_(
             destination_disks,
             wipe_disks,
             params["set_pmbr"],
             params["authentication"],
-            params.get("post_install", None),
+            post_install,
             await serial_sql(),
             functools.partial(callback, context.server),
         )
