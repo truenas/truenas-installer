@@ -4,6 +4,7 @@ import time
 import uuid
 from urllib.parse import urlencode
 
+from ixhardware import get_chassis_hardware
 from truenas_connect_utils.install_schema import TNC_CONFIG_SCHEMA
 from truenas_connect_utils.urls import get_registration_uri
 
@@ -77,7 +78,7 @@ async def tnc_registration_uri(context):
 
     query_params = {
         'version': config['truenas_version'],
-        'model': 'UNKNOWN',  # FIXME: Obviously fix this
+        'model': get_chassis_hardware().removeprefix('TRUENAS-'),
         'system_id': config['system_id'],
         'token': config['claim_token'],
     }
