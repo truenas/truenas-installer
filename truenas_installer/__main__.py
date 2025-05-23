@@ -4,7 +4,7 @@ import json
 
 from aiohttp import web
 
-from ixhardware import parse_dmi
+from ixhardware import get_chassis_hardware, parse_dmi
 
 from .installer import Installer
 from .installer_menu import InstallerMenu
@@ -29,8 +29,9 @@ def main():
         pass
 
     dmi = parse_dmi()
+    tn_model = get_chassis_hardware(dmi)
 
-    installer = Installer(version, dmi, vendor)
+    installer = Installer(version, dmi, vendor, tn_model)
 
     if args.doc:
         generate_api_doc()

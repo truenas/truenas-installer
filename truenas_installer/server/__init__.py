@@ -1,5 +1,4 @@
 import aiohttp_rpc
-from ixhardware import get_chassis_hardware
 
 import truenas_installer.server.api  # noqa
 from truenas_installer.server.api.adoption import adoption_middleware
@@ -13,7 +12,6 @@ class InstallerRPCServer(aiohttp_rpc.WsJsonRpcServer):
     def __init__(self, installer):
         self.installer = installer
         self.configured_tnc = False
-        self.tn_model = get_chassis_hardware()
         super().__init__(
             middlewares=(
                 adoption_middleware,
