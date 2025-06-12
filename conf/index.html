@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrueNAS Installer</title>
+</head>
+
+<body>
+    <div id="status">Connecting...</div>
+    <div id="messages"></div>
+
+    <script>
+        // SAMPLE URL:          http://127.0.0.1:8080/?config=%7B%22account_service_base_url%22%3A%22https%3A%2F%2Faccount-service.dev.ixsystems.net%2F%22%2C%22leca_service_base_url%22%3A%22https%3A%2F%2Fdns-service.dev.ixsystems.net%2F%22%2C%22tnc_base_url%22%3A%22https%3A%2F%2Ftruenas.connect.dev.ixsystems.net%2F%22%7D
+        
+        const ws = new WebSocket('ws://127.0.0.1:8080/ws');
+        const urlParams = new URLSearchParams(window.location.search);
+        const configParam = urlParams.get('config');
+        const config = JSON.parse(decodeURIComponent(configParam))
+        const {account_service_base_url, leca_service_base_url, tnc_base_url} = config;
+
+
+        if (!(account_service_base_url && leca_service_base_url && tnc_base_url)) {
+            document.getElementById('status').textContent = 'Invalid configuration!';
+        } else {
+            ws.onopen = function (event) {
+                document.getElementById('status').textContent = 'Connected';
+                console.log('WebSocket connected', event);
+
+                const adopt = {
+                    id: crypto.randomUUID(),
+                    jsonrpc: '2.0',
+                    method: 'adopt',
+                    params: []
+                }
+                ws.send(JSON.stringify(adopt))
+
+
+                // Set Configuration 
+                // const setConfig = {
+                //     id: crypto.randomUUID(),
+                //     jsonrpc: '2.0',
+                //     method: 'configure_tnc',
+                //     params: [{
+                //         ...config
+                //     }]
+                // }
+                // ws.send(JSON.stringify(setConfig))
+
+
+                // Get TNC Registration Url
+                // const getUrl = {
+                //     id: crypto.randomUUID(),
+                //     jsonrpc: '2.0',
+                //     method: 'tnc_registration_uri',
+                //     params: []
+                // }
+                // ws.send(JSON.stringify(getUrl))
+            };
+
+            ws.onmessage = function (event) {
+                const messages = document.getElementById('messages');
+                const messageElement = document.createElement('div');
+                messageElement.textContent = event.data;
+                messages.appendChild(messageElement);
+                console.log('Message received:', event.data);
+            };
+
+            ws.onclose = function (event) {
+                document.getElementById('status').textContent = 'Disconnected';
+                console.log('WebSocket closed');
+            };
+
+            ws.onerror = function (error) {
+                document.getElementById('status').textContent = 'Error';
+                console.error('WebSocket error:', error);
+            };
+        }
+    </script>
+</body>
+
+</html>
