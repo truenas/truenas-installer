@@ -14,7 +14,7 @@
     <script>
         // SAMPLE URL:          http://127.0.0.1:8080/?config=%7B%22account_service_base_url%22%3A%22https%3A%2F%2Faccount-service.dev.ixsystems.net%2F%22%2C%22leca_service_base_url%22%3A%22https%3A%2F%2Fdns-service.dev.ixsystems.net%2F%22%2C%22tnc_base_url%22%3A%22https%3A%2F%2Ftruenas.connect.dev.ixsystems.net%2F%22%7D
         
-        const ws = new WebSocket('ws://127.0.0.1:8080/ws');
+        const ws = new WebSocket('ws://127.0.0.1:8080/');
         const urlParams = new URLSearchParams(window.location.search);
         const configParam = urlParams.get('config');
         const config = JSON.parse(decodeURIComponent(configParam))
