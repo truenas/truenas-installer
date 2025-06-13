@@ -12,8 +12,6 @@
     <div id="messages"></div>
 
     <script>
-        // SAMPLE URL:          http://127.0.0.1:8080/?config=%7B%22account_service_base_url%22%3A%22https%3A%2F%2Faccount-service.dev.ixsystems.net%2F%22%2C%22leca_service_base_url%22%3A%22https%3A%2F%2Fdns-service.dev.ixsystems.net%2F%22%2C%22tnc_base_url%22%3A%22https%3A%2F%2Ftruenas.connect.dev.ixsystems.net%2F%22%7D
-        
         class RPCClient {
             constructor(url) {
                 this.ws = new WebSocket(url);
@@ -85,14 +83,9 @@
             async onConnected() {
                 try {
                     const adoptResult = await this.call('adopt');
-                    console.log('Adopt result:', adoptResult);
-                    const authResult = await this.call('authenticate', [adoptResult])
-                    console.log('Authentication result:', authResult);
-
-                    const configResult = await this.call('configure_tnc', [{...config, enabled: true}]);
-                    console.log('Configuration result:', configResult);
+                    await this.call('authenticate', [adoptResult])
+                    await this.call('configure_tnc', [{...config, enabled: true}]);
                     const urlResult = await this.call('tnc_registration_uri');
-                    console.log('TNC Registration URL:', urlResult);
                     window.location.replace(urlResult)
                 } catch (error) {
                     console.error('RPC call failed:', error);
@@ -100,13 +93,13 @@
             }
         }
 
+        // Url params {config: encodeURIComponent('{"account_service_base_url":"***", "leca_service_base_url":"***", "tnc_base_url":"**"}')}
+        // SAMPLE URL:          http://127.0.0.1:8080/?config=%7B%22account_service_base_url%22%3A%22https%3A%2F%2Faccount-service.dev.ixsystems.net%2F%22%2C%22leca_service_base_url%22%3A%22https%3A%2F%2Fdns-service.dev.ixsystems.net%2F%22%2C%22tnc_base_url%22%3A%22https%3A%2F%2Ftruenas.connect.dev.ixsystems.net%2F%22%7D
+    
         const urlParams = new URLSearchParams(window.location.search);
         const configParam = urlParams.get('config');
         const config = JSON.parse(decodeURIComponent(configParam))
-        console.log('config', config)
-        const {account_service_base_url, leca_service_base_url, tnc_base_url} = config;
-
-        if (!(account_service_base_url && leca_service_base_url && tnc_base_url)) {
+        if (!(config && config.account_service_base_url && config.leca_service_base_url && config.tnc_base_url)) {
             document.getElementById('status').textContent = 'Invalid configuration!';
         } else {
             const rpcClient = new RPCClient('ws://127.0.0.1:8080/');
