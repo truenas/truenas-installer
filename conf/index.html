@@ -86,6 +86,8 @@
                 try {
                     const adoptResult = await this.call('adopt');
                     console.log('Adopt result:', adoptResult);
+                    const authResult = await this.call('authenticate', [adoptResult])
+                    console.log('Authentication result:', authResult);
 
                     const configResult = await this.call('configure_tnc', [{...config, enabled: true}]);
                     console.log('Configuration result:', configResult);
