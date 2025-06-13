@@ -14,68 +14,100 @@
     <script>
         // SAMPLE URL:          http://127.0.0.1:8080/?config=%7B%22account_service_base_url%22%3A%22https%3A%2F%2Faccount-service.dev.ixsystems.net%2F%22%2C%22leca_service_base_url%22%3A%22https%3A%2F%2Fdns-service.dev.ixsystems.net%2F%22%2C%22tnc_base_url%22%3A%22https%3A%2F%2Ftruenas.connect.dev.ixsystems.net%2F%22%7D
         
-        const ws = new WebSocket('ws://127.0.0.1:8080/');
+        class RPCClient {
+            constructor(url) {
+                this.ws = new WebSocket(url);
+                this.pendingRequests = new Map();
+                this.setupEventHandlers();
+            }
+
+            setupEventHandlers() {
+                this.ws.onopen = (event) => {
+                    document.getElementById('status').textContent = 'Connected';
+                    console.log('WebSocket connected', event);
+                    this.onConnected();
+                };
+
+                this.ws.onmessage = (event) => {
+                    try {
+                        const response = JSON.parse(event.data);
+                        this.handleResponse(response);
+                    } catch (error) {
+                        console.error('Failed to parse response:', error);
+                    }
+                };
+
+                this.ws.onclose = (event) => {
+                    document.getElementById('status').textContent = 'Disconnected';
+                    console.log('WebSocket closed');
+                };
+
+                this.ws.onerror = (error) => {
+                    document.getElementById('status').textContent = 'Error';
+                    console.error('WebSocket error:', error);
+                };
+            }
+
+            call(method, params = []) {
+                return new Promise((resolve, reject) => {
+                    const id = crypto.randomUUID();
+                    const request = {
+                        id,
+                        jsonrpc: '2.0',
+                        method,
+                        params
+                    };
+
+                    this.pendingRequests.set(id, { resolve, reject });
+                    this.ws.send(JSON.stringify(request));
+                });
+            }
+
+            handleResponse(response) {
+                const messages = document.getElementById('messages');
+                const messageElement = document.createElement('div');
+                messageElement.textContent = JSON.stringify(response, null, 2);
+                messages.appendChild(messageElement);
+                console.log('Message received:', response);
+
+                if (response.id && this.pendingRequests.has(response.id)) {
+                    const { resolve, reject } = this.pendingRequests.get(response.id);
+                    this.pendingRequests.delete(response.id);
+
+                    if (response.error) {
+                        reject(response.error);
+                    } else {
+                        resolve(response.result);
+                    }
+                }
+            }
+
+            async onConnected() {
+                try {
+                    const adoptResult = await this.call('adopt');
+                    console.log('Adopt result:', adoptResult);
+
+                    const configResult = await this.call('configure_tnc', [{...config, enabled: true}]);
+                    console.log('Configuration result:', configResult);
+                    const urlResult = await this.call('tnc_registration_uri');
+                    console.log('TNC Registration URL:', urlResult);
+                    window.location.replace(urlResult)
+                } catch (error) {
+                    console.error('RPC call failed:', error);
+                }
+            }
+        }
+
         const urlParams = new URLSearchParams(window.location.search);
         const configParam = urlParams.get('config');
         const config = JSON.parse(decodeURIComponent(configParam))
+        console.log('config', config)
         const {account_service_base_url, leca_service_base_url, tnc_base_url} = config;
-
 
         if (!(account_service_base_url && leca_service_base_url && tnc_base_url)) {
             document.getElementById('status').textContent = 'Invalid configuration!';
         } else {
-            ws.onopen = function (event) {
-                document.getElementById('status').textContent = 'Connected';
-                console.log('WebSocket connected', event);
-
-                const adopt = {
-                    id: crypto.randomUUID(),
-                    jsonrpc: '2.0',
-                    method: 'adopt',
-                    params: []
-                }
-                ws.send(JSON.stringify(adopt))
-
-
-                // Set Configuration 
-                // const setConfig = {
-                //     id: crypto.randomUUID(),
-                //     jsonrpc: '2.0',
-                //     method: 'configure_tnc',
-                //     params: [{
-                //         ...config
-                //     }]
-                // }
-                // ws.send(JSON.stringify(setConfig))
-
-
-                // Get TNC Registration Url
-                // const getUrl = {
-                //     id: crypto.randomUUID(),
-                //     jsonrpc: '2.0',
-                //     method: 'tnc_registration_uri',
-                //     params: []
-                // }
-                // ws.send(JSON.stringify(getUrl))
-            };
-
-            ws.onmessage = function (event) {
-                const messages = document.getElementById('messages');
-                const messageElement = document.createElement('div');
-                messageElement.textContent = event.data;
-                messages.appendChild(messageElement);
-                console.log('Message received:', event.data);
-            };
-
-            ws.onclose = function (event) {
-                document.getElementById('status').textContent = 'Disconnected';
-                console.log('WebSocket closed');
-            };
-
-            ws.onerror = function (error) {
-                document.getElementById('status').textContent = 'Error';
-                console.error('WebSocket error:', error);
-            };
+            const rpcClient = new RPCClient('ws://127.0.0.1:8080/');
         }
     </script>
 </body>
