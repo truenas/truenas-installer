@@ -82,9 +82,15 @@
 
             async onConnected() {
                 try {
-                    const adoptResult = await this.call('adopt');
-                    await this.call('authenticate', [adoptResult])
-                    await this.call('configure_tnc', [{...config, enabled: true}]);
+                    const isAdopted = await this.call('is_adopted');
+                    let accessKey = ''
+                    if (!isAdopted) {
+                        accessKey = await this.call('adopt');
+                        console.log('Access Key:', accessKey);
+                    }
+
+                    await this.call('authenticate', accessKey)
+                    await this.call('configure_tnc', {...config, enabled: true, ips: ['192.168.1.1']});    // NOTE: there should be at least ip address
                     const urlResult = await this.call('tnc_registration_uri');
                     window.location.replace(urlResult)
                 } catch (error) {
@@ -99,6 +105,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const configParam = urlParams.get('config');
         const config = JSON.parse(decodeURIComponent(configParam))
+        // const config = JSON.parse(decodeURIComponent('%7B%22account_service_base_url%22%3A%22https%3A%2F%2Faccount-service.dev.ixsystems.net%2F%22%2C%22leca_service_base_url%22%3A%22https%3A%2F%2Fdns-service.dev.ixsystems.net%2F%22%2C%22tnc_base_url%22%3A%22https%3A%2F%2Ftruenas.connect.dev.ixsystems.net%2F%22%7D')) // TODO: temporary
         if (!(config && config.account_service_base_url && config.leca_service_base_url && config.tnc_base_url)) {
             document.getElementById('status').textContent = 'Invalid configuration!';
         } else {
