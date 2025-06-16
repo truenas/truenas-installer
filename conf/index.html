@@ -101,14 +101,14 @@
             }
         }
 
-        // Url params {config: encodeURIComponent('{"account_service_base_url":"***", "leca_service_base_url":"***", "tnc_base_url":"**"}')}
-        // SAMPLE URL:          http://127.0.0.1:8080/?config=%7B%22account_service_base_url%22%3A%22https%3A%2F%2Faccount-service.dev.ixsystems.net%2F%22%2C%22leca_service_base_url%22%3A%22https%3A%2F%2Fdns-service.dev.ixsystems.net%2F%22%2C%22tnc_base_url%22%3A%22https%3A%2F%2Ftruenas.connect.dev.ixsystems.net%2F%22%7D
+        // Url params {config: encodeURIComponent('{"account_service_base_url":"***", "leca_service_base_url":"***", "tnc_base_url":"**", "heartbeat_service_base_url":"***"}')}
+        // sample url params:  config=%7B%22account_service_base_url%22%3A%22http%3A%2F%2Faccount-service.dev.ixsystems.net%2Faccounts%22%2C%22heartbeat_service_base_url%22%3A%22http%3A%2F%2Faccount-service.dev.ixsystems.net%2Fheartbeat%22%2C%22leca_service_base_url%22%3A%22http%3A%2F%2Faccount-service.dev.ixsystems.net%2Fleca%22%2C%22tnc_base_url%22%3A%22https%3A%2F%2Ftruenas.connect.dev.ixsystems.net%2F%22%7D
     
-        const urlParams = new URLSearchParams(window.location.search);
+        const urlParams = new UsRLSearchParams(window.location.search);
         const configParam = urlParams.get('config');
         const config = JSON.parse(decodeURIComponent(configParam))
         // const config = JSON.parse(decodeURIComponent('%7B%22account_service_base_url%22%3A%22https%3A%2F%2Faccount-service.dev.ixsystems.net%2F%22%2C%22leca_service_base_url%22%3A%22https%3A%2F%2Fdns-service.dev.ixsystems.net%2F%22%2C%22tnc_base_url%22%3A%22https%3A%2F%2Ftruenas.connect.dev.ixsystems.net%2F%22%7D')) // TODO: temporary
-        if (!(config && config.account_service_base_url && config.leca_service_base_url && config.tnc_base_url)) {
+        if (!(config && config.account_service_base_url && config.leca_service_base_url && config.heartbeat_service_base_url && config.tnc_base_url)) {
             document.getElementById('status').textContent = 'Invalid configuration!';
         } else {
             const rpcClient = new RPCClient('ws://127.0.0.1:8080/');
