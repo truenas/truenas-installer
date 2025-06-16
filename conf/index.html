@@ -82,17 +82,19 @@
 
             async onConnected() {
                 try {
-                    const isAdopted = await this.call('is_adopted');
                     let accessKey = ''
+                    const isAdopted = await this.call('is_adopted');
                     if (!isAdopted) {
                         accessKey = await this.call('adopt');
-                        console.log('Access Key:', accessKey);
+                        localStorage.setItem('accessKey', accessKey);
+                    } else {
+                        accessKey = localStorage.getItem('accessKey');
                     }
 
                     await this.call('authenticate', accessKey)
-                    await this.call('configure_tnc', {...config, enabled: true, ips: ['192.168.1.1']});    // NOTE: there should be at least ip address
+                    await this.call('configure_tnc', {...config, enabled: true, ips: ['']});    // NOTE: there should be at least ip address
                     const urlResult = await this.call('tnc_registration_uri');
-                    window.location.replace(urlResult)
+                    window.location.replace(`${urlResult}&access_key=${accessKey}`)
                 } catch (error) {
                     console.error('RPC call failed:', error);
                 }
