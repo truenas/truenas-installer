@@ -94,7 +94,8 @@
                     await this.call('authenticate', accessKey)
                     await this.call('configure_tnc', {...config, enabled: true, ips: ['']});    // NOTE: there should be at least ip address
                     const urlResult = await this.call('tnc_registration_uri');
-                    window.location.replace(`${urlResult}&access_key=${accessKey}`)
+                    window.location.replace(`${urlResult}&installer_token=${accessKey}`)
+                    
                 } catch (error) {
                     console.error('RPC call failed:', error);
                 }
@@ -104,7 +105,7 @@
         // Url params {config: encodeURIComponent('{"account_service_base_url":"***", "leca_service_base_url":"***", "tnc_base_url":"**", "heartbeat_service_base_url":"***"}')}
         // sample url params:  config=%7B%22account_service_base_url%22%3A%22http%3A%2F%2Faccount-service.dev.ixsystems.net%2Faccounts%22%2C%22heartbeat_service_base_url%22%3A%22http%3A%2F%2Faccount-service.dev.ixsystems.net%2Fheartbeat%22%2C%22leca_service_base_url%22%3A%22http%3A%2F%2Faccount-service.dev.ixsystems.net%2Fleca%22%2C%22tnc_base_url%22%3A%22https%3A%2F%2Ftruenas.connect.dev.ixsystems.net%2F%22%7D
     
-        const urlParams = new UsRLSearchParams(window.location.search);
+        const urlParams = new URLSearchParams(window.location.search);
         const configParam = urlParams.get('config');
         const config = JSON.parse(decodeURIComponent(configParam))
         // const config = JSON.parse(decodeURIComponent('%7B%22account_service_base_url%22%3A%22https%3A%2F%2Faccount-service.dev.ixsystems.net%2F%22%2C%22leca_service_base_url%22%3A%22https%3A%2F%2Fdns-service.dev.ixsystems.net%2F%22%2C%22tnc_base_url%22%3A%22https%3A%2F%2Ftruenas.connect.dev.ixsystems.net%2F%22%7D')) // TODO: temporary
