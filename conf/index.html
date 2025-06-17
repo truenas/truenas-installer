@@ -48,7 +48,7 @@
 
             call(method, params = []) {
                 return new Promise((resolve, reject) => {
-                    const id = crypto.randomUUID();
+                    const id = this.generateUUID();
                     const request = {
                         id,
                         jsonrpc: '2.0',
@@ -92,13 +92,34 @@
                     }
 
                     await this.call('authenticate', accessKey)
-                    await this.call('configure_tnc', {...config, enabled: true, ips: ['']});    // NOTE: there should be at least ip address
+                    const tncConfig = await this.call('tnc_config')
+                    if (!tncConfig.enabled) {
+                        await this.call('configure_tnc', [{...config, enabled: true, ips: ['']}]);    // NOTE: there should be at least ip address
+                    }
+                    if (tncConfig.claim_token_expiration < Math.floor(Date.now() / 1000)) {
+                        // TODO: Claim token has expired. Try to re-insert the disc or ISO
+                    }
                     const urlResult = await this.call('tnc_registration_uri');
                     window.location.replace(`${urlResult}&installer_token=${accessKey}`)
-                    
                 } catch (error) {
                     console.error('RPC call failed:', error);
                 }
+            }
+
+            generateUUID() {
+              // Check if the modern, secure crypto.randomUUID is available.
+              if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+                return crypto.randomUUID();
+              }
+            
+              // Otherwise, fall back to a manual implementation.
+              // This is a standard and reliable method for creating a UUID v4.
+              // Courtesy of the original RFC4122 spec.
+              return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+              });
             }
         }
 
@@ -112,7 +133,9 @@
         if (!(config && config.account_service_base_url && config.leca_service_base_url && config.heartbeat_service_base_url && config.tnc_base_url)) {
             document.getElementById('status').textContent = 'Invalid configuration!';
         } else {
-            const rpcClient = new RPCClient('ws://127.0.0.1:8080/');
+            setTimeout(() => {
+                const rpcClient = new RPCClient('ws://truenas-installer.local:8080/');
+            }, 1000)
         }
     </script>
 </body>
