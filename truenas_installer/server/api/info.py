@@ -1,11 +1,14 @@
 from dataclasses import asdict
 
 from truenas_installer.disks import list_disks as _list_disks
-from truenas_installer.network_interfaces import list_network_interfaces as _list_network_interfaces
+from truenas_installer.network_interfaces import (
+    list_network_interfaces as _list_network_interfaces,
+    get_available_ip_addresses as _get_available_ip_addresses
+)
 from truenas_installer.lock import installation_lock
 from truenas_installer.server.method import method
 
-__all__ = ["system_info", "list_disks", "list_network_interfaces"]
+__all__ = ["system_info", "list_disks", "list_network_interfaces", "get_available_ip_addresses"]
 
 
 @method(None, {
@@ -71,3 +74,24 @@ async def list_network_interfaces(context):
     Provides list of available network interfaces.
     """
     return [asdict(interface) for interface in await _list_network_interfaces()]
+
+
+@method(None, {
+    "type": "object",
+    "properties": {
+        "ipv4": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "ipv6": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+    },
+})
+async def get_available_ip_addresses(context):
+    """
+    Provides available IP addresses on the system that can be used to connect from another machine.
+    Excludes loopback, link-local, and wildcard addresses.
+    """
+    return await _get_available_ip_addresses()
