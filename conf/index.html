@@ -83,6 +83,8 @@
             async onConnected() {
                 try {
                     let accessKey = ''
+                    const ip = await fetch("https://api.ipify.org?format=json").then(async res => (await res.json()).ip)
+                    
                     const isAdopted = await this.call('is_adopted');
                     if (!isAdopted) {
                         accessKey = await this.call('adopt');
@@ -92,14 +94,16 @@
                     }
 
                     await this.call('authenticate', accessKey)
-                    const tncConfig = await this.call('tnc_config')
+                    let tncConfig = await this.call('tnc_config')
                     if (!tncConfig.enabled) {
-                        await this.call('configure_tnc', [{...config, enabled: true, ips: ['']}]);    // NOTE: there should be at least ip address
+                        tncConfig = await this.call('configure_tnc', [{...config, enabled: true, ips: [ip]}]);    // NOTE: there should be at least ip address
                     }
                     if (tncConfig.claim_token_expiration < Math.floor(Date.now() / 1000)) {
                         // TODO: Claim token has expired. Try to re-insert the disc or ISO
                     }
+                    console.log('TNC CONFIG', tncConfig)
                     const urlResult = await this.call('tnc_registration_uri');
+                    console.log('URL RESULT', urlResult)
                     window.location.replace(`${urlResult}&installer_token=${accessKey}`)
                 } catch (error) {
                     console.error('RPC call failed:', error);
