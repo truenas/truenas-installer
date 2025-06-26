@@ -5,11 +5,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TrueNAS Installer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
 
-<body>
-    <div id="status">Connecting...</div>
-    <div id="messages"></div>
+<body class="bg-gray-100 min-h-screen">
+    <div id="loader" class="fixed inset-0 flex items-center justify-center bg-white bg-opacity-80 z-50">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <p class="mt-4 text-gray-700 font-medium text-2xl">Connecting...</p>
+        </div>
+    </div>
+    
 
     <script>
         class RPCClient {
@@ -21,7 +27,7 @@
 
             setupEventHandlers() {
                 this.ws.onopen = (event) => {
-                    document.getElementById('status').textContent = 'Connected';
+                    document.querySelector('#loader p').textContent = 'Websocket is connected';
                     console.log('WebSocket connected', event);
                     this.onConnected();
                 };
@@ -36,12 +42,15 @@
                 };
 
                 this.ws.onclose = (event) => {
-                    document.getElementById('status').textContent = 'Disconnected';
+                    document.getElementById('loader').classList.remove('hidden');
+                    document.querySelector('#loader p').textContent = 'Websocket connection closed';
+                    document.querySelector('#loader .animate-spin').classList.remove('animate-spin');
+                    document.querySelector('#loader .animate-spin').innerHTML = '<svg class="w-12 h-12 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
                     console.log('WebSocket closed');
                 };
 
                 this.ws.onerror = (error) => {
-                    document.getElementById('status').textContent = 'Error';
+                    document.querySelector('#loader p').textContent = 'WebSocket connection failed';
                     console.error('WebSocket error:', error);
                 };
             }
@@ -62,12 +71,6 @@
             }
 
             handleResponse(response) {
-                const messages = document.getElementById('messages');
-                const messageElement = document.createElement('div');
-                messageElement.textContent = JSON.stringify(response, null, 2);
-                messages.appendChild(messageElement);
-                console.log('Message received:', response);
-
                 if (response.id && this.pendingRequests.has(response.id)) {
                     const { resolve, reject } = this.pendingRequests.get(response.id);
                     this.pendingRequests.delete(response.id);
@@ -83,7 +86,6 @@
             async onConnected() {
                 try {
                     let accessKey = ''
-                    const ip = await fetch("https://api.ipify.org?format=json").then(async res => (await res.json()).ip)
                     
                     const isAdopted = await this.call('is_adopted');
                     if (!isAdopted) {
@@ -96,7 +98,7 @@
                     await this.call('authenticate', accessKey)
                     let tncConfig = await this.call('tnc_config')
                     if (!tncConfig.enabled) {
-                        tncConfig = await this.call('configure_tnc', [{...config, enabled: true, ips: [ip]}]);    // NOTE: there should be at least ip address
+                        tncConfig = await this.call('configure_tnc', [{...config, enabled: true}]);    // NOTE: there should be at least ip address
                     }
                     if (tncConfig.claim_token_expiration < Math.floor(Date.now() / 1000)) {
                         // TODO: Claim token has expired. Try to re-insert the disc or ISO
@@ -135,7 +137,9 @@
         const config = JSON.parse(decodeURIComponent(configParam))
         // const config = JSON.parse(decodeURIComponent('%7B%22account_service_base_url%22%3A%22https%3A%2F%2Faccount-service.dev.ixsystems.net%2F%22%2C%22leca_service_base_url%22%3A%22https%3A%2F%2Fdns-service.dev.ixsystems.net%2F%22%2C%22tnc_base_url%22%3A%22https%3A%2F%2Ftruenas.connect.dev.ixsystems.net%2F%22%7D')) // TODO: temporary
         if (!(config && config.account_service_base_url && config.leca_service_base_url && config.heartbeat_service_base_url && config.tnc_base_url)) {
-            document.getElementById('status').textContent = 'Invalid configuration!';
+            document.querySelector('#loader p').textContent = 'Missing required url parameters';
+            document.querySelector('#loader .animate-spin').classList.remove('animate-spin');
+            document.querySelector('#loader .animate-spin').innerHTML = '<svg class="w-12 h-12 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
         } else {
             setTimeout(() => {
                 const rpcClient = new RPCClient('ws://truenas-installer.local:8080/');
