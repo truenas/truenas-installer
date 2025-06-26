@@ -7,6 +7,7 @@ from urllib.parse import urlencode
 from truenas_connect_utils.install_schema import TNC_CONFIG_SCHEMA
 from truenas_connect_utils.urls import get_registration_uri
 
+from truenas_installer.network_interfaces import get_available_ip_addresses
 from truenas_installer.server.error import Error
 from truenas_installer.server.method import method
 
@@ -39,7 +40,7 @@ async def tnc_config(context):
         'leca_service_base_url': {'type': 'string'},
         'tnc_base_url': {'type': 'string'},
     },
-    'required': ['enabled', 'ips'],
+    'required': ['enabled'],
 }, TNC_CONFIG_SCHEMA)
 async def configure_tnc(context, data):
     """
@@ -48,10 +49,23 @@ async def configure_tnc(context, data):
     if context.server.configured_tnc is True:
         raise Error('Configuration can only be updated once', errno.EINVAL)
 
-    if data['enabled'] and not data['ips']:
-        raise Error('No IP addresses provided', errno.EINVAL)
-
+    # Handle IP addresses - either use provided or auto-detect
     if data['enabled']:
+        if 'ips' not in data or not data['ips']:
+            # Auto-detect IPs if not provided
+            detected_ips = await get_available_ip_addresses()
+            all_ips = detected_ips['ipv4'] + detected_ips['ipv6']
+
+            if not all_ips:
+                raise Error(
+                    'No IP addresses provided and none detected on the system. '
+                    'Please provide IP addresses explicitly.',
+                    errno.EINVAL
+                )
+
+            data['ips'] = all_ips
+        # else: use the IPs provided by the user
+
         context.server.configured_tnc = True
 
     config = update_tnc_config(data)
