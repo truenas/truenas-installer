@@ -1,2 +1,3 @@
 conf/nginx.conf usr/share/truenas-installer/
 conf/cert.conf usr/share/truenas-installer/
+conf/index.html usr/share/truenas-installer/
