@@ -8,178 +8,179 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" />
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 
 <body class="bg-gray-100 min-h-screen">
     <div id="app"></div>
 
-    <script type="text/babel">
-        const { useState, useEffect } = React;
+    <script>
+        let showLoader = true;
+        let loaderState = 'loading';
+        let statusMessage = 'Connecting...';
 
-        function App() {
-            const [showLoader, setShowLoader] = useState(true);
-            const [loaderState, setLoaderState] = useState('loading');
-            const [statusMessage, setStatusMessage] = useState('Connecting...');
+        function updateUI() {
+            const app = document.getElementById('app');
+            
+            if (showLoader) {
+                app.innerHTML = `
+                    <div class="fixed inset-0 flex items-center justify-center bg-white bg-opacity-80 z-50">
+                        <div class="text-center">
+                            ${loaderState === 'loading' ? 
+                                '<div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>' : ''}
+                            ${loaderState === 'success' ? 
+                                '<div class="inline-block"><span class="material-symbols-outlined text-6xl text-green-500">check_circle</span></div>' : ''}
+                            ${loaderState === 'error' ? 
+                                '<div class="inline-block"><span class="material-symbols-outlined text-6xl text-red-500">cancel</span></div>' : ''}
+                            <p class="mt-4 text-gray-700 font-medium text-2xl">${statusMessage}</p>
+                        </div>
+                    </div>
+                `;
+            } else {
+                app.innerHTML = '';
+            }
+        }
 
-            class RPCClient {
-                constructor(url, config) {
-                    this.ws = new WebSocket(url);
-                    this.config = config;
-                    this.pendingRequests = new Map();
-                    this.setupEventHandlers();
-                }
+        function setShowLoader(value) {
+            showLoader = value;
+            updateUI();
+        }
 
-                setupEventHandlers() {
-                    this.ws.onopen = (event) => {
-                        setStatusMessage('Websocket is connected');
-                        console.log('WebSocket connected', event);
-                        this.onConnected();
-                    };
+        function setLoaderState(value) {
+            loaderState = value;
+            updateUI();
+        }
 
-                    this.ws.onmessage = (event) => {
-                        try {
-                            const response = JSON.parse(event.data);
-                            this.handleResponse(response);
-                        } catch (error) {
-                            console.error('Failed to parse response:', error);
-                        }
-                    };
+        function setStatusMessage(value) {
+            statusMessage = value;
+            updateUI();
+        }
 
-                    this.ws.onclose = (event) => {
-                        setShowLoader(true);
-                        setStatusMessage('Websocket connection closed');
-                        setLoaderState('error');
-                        console.log('WebSocket closed');
-                    };
+        class RPCClient {
+            constructor(url, config) {
+                this.ws = new WebSocket(url);
+                this.config = config;
+                this.pendingRequests = new Map();
+                this.setupEventHandlers();
+            }
 
-                    this.ws.onerror = (error) => {
-                        setStatusMessage('WebSocket connection failed');
-                        setLoaderState('error');
-                        console.error('WebSocket error:', error);
-                    };
-                }
+            setupEventHandlers() {
+                this.ws.onopen = (event) => {
+                    setStatusMessage('Websocket is connected');
+                    console.log('WebSocket connected', event);
+                    this.onConnected();
+                };
 
-                call(method, params = []) {
-                    return new Promise((resolve, reject) => {
-                        const id = this.generateUUID();
-                        const request = {
-                            id,
-                            jsonrpc: '2.0',
-                            method,
-                            params
-                        };
-
-                        this.pendingRequests.set(id, { resolve, reject });
-                        this.ws.send(JSON.stringify(request));
-                    });
-                }
-
-                handleResponse(response) {
-                    if (response.id && this.pendingRequests.has(response.id)) {
-                        const { resolve, reject } = this.pendingRequests.get(response.id);
-                        this.pendingRequests.delete(response.id);
-                        if (response.error) {
-                            reject(response.error);
-                        } else {
-                            resolve(response.result);
-                        }
-                    }
-                }
-
-                async onConnected() {
+                this.ws.onmessage = (event) => {
                     try {
-                        let accessKey = ''
-                        setStatusMessage('Generating TNC Registration URL');
-                        const isAdopted = await this.call('is_adopted');
-                        if (!isAdopted) {
-                            accessKey = await this.call('adopt');
-                            localStorage.setItem('accessKey', accessKey);
-                        } else {
-                            accessKey = localStorage.getItem('accessKey');
-                        }
-
-                        await this.call('authenticate', accessKey)
-                        let tncConfig = await this.call('tnc_config')
-                        if (!tncConfig.enabled) {
-                            tncConfig = await this.call('configure_tnc', { ...this.config, enabled: true });
-                        }
-                        if (tncConfig.claim_token_expiration < Math.floor(Date.now() / 1000)) {
-                            // TODO: Claim token has expired. Try to re-insert the disc or ISO
-                        }
-                        console.log('TNC CONFIG', tncConfig)
-                        const urlResult = await this.call('tnc_registration_uri');
-                        console.log('URL RESULT', urlResult)
-                        setStatusMessage('The TNC registration URL is ready');
-                        window.location.replace(`${urlResult}&installer_token=${accessKey}`)
+                        const response = JSON.parse(event.data);
+                        this.handleResponse(response);
                     } catch (error) {
-                        console.error('RPC call failed:', error);
-                        setLoaderState('error');
-                        setStatusMessage('Generating TNC Registration URL failed');
+                        console.error('Failed to parse response:', error);
                     }
-                }
+                };
 
-                generateUUID() {
-                    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-                        return crypto.randomUUID();
+                this.ws.onclose = (event) => {
+                    setShowLoader(true);
+                    setStatusMessage('Websocket connection closed');
+                    setLoaderState('error');
+                    console.log('WebSocket closed');
+                };
+
+                this.ws.onerror = (error) => {
+                    setStatusMessage('WebSocket connection failed');
+                    setLoaderState('error');
+                    console.error('WebSocket error:', error);
+                };
+            }
+
+            call(method, params = []) {
+                return new Promise((resolve, reject) => {
+                    const id = this.generateUUID();
+                    const request = {
+                        id,
+                        jsonrpc: '2.0',
+                        method,
+                        params
+                    };
+
+                    this.pendingRequests.set(id, { resolve, reject });
+                    this.ws.send(JSON.stringify(request));
+                });
+            }
+
+            handleResponse(response) {
+                if (response.id && this.pendingRequests.has(response.id)) {
+                    const { resolve, reject } = this.pendingRequests.get(response.id);
+                    this.pendingRequests.delete(response.id);
+                    if (response.error) {
+                        reject(response.error);
+                    } else {
+                        resolve(response.result);
                     }
-
-                    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-                        const r = Math.random() * 16 | 0;
-                        const v = c === 'x' ? r : (r & 0x3 | 0x8);
-                        return v.toString(16);
-                    });
                 }
             }
 
-            useEffect(() => {
-                const urlParams = new URLSearchParams(window.location.search);
-                const configParam = urlParams.get('config');
-                const config = JSON.parse(decodeURIComponent(configParam));
+            async onConnected() {
+                try {
+                    let accessKey = ''
+                    setStatusMessage('Generating TNC Registration URL');
+                    const isAdopted = await this.call('is_adopted');
+                    if (!isAdopted) {
+                        accessKey = await this.call('adopt');
+                        localStorage.setItem('accessKey', accessKey);
+                    } else {
+                        accessKey = localStorage.getItem('accessKey');
+                    }
 
-                if (!(config && config.account_service_base_url && config.leca_service_base_url && config.heartbeat_service_base_url && config.tnc_base_url)) {
-                    setStatusMessage('Something is missing in the web address');
+                    await this.call('authenticate', accessKey)
+                    let tncConfig = await this.call('tnc_config')
+                    if (!tncConfig.enabled) {
+                        tncConfig = await this.call('configure_tnc', { ...this.config, enabled: true });
+                    }
+                    if (tncConfig.claim_token_expiration < Math.floor(Date.now() / 1000)) {
+                        // TODO: Claim token has expired. Try to re-insert the disc or ISO
+                    }
+                    console.log('TNC CONFIG', tncConfig)
+                    const urlResult = await this.call('tnc_registration_uri');
+                    console.log('URL RESULT', urlResult)
+                    setStatusMessage('The TNC registration URL is ready');
+                    window.location.replace(`${urlResult}&installer_token=${accessKey}`)
+                } catch (error) {
+                    console.error('RPC call failed:', error);
                     setLoaderState('error');
-                } else {
-                    setTimeout(() => {
-                        const rpcClient = new RPCClient('ws://truenas-installer.local:8080/', config);
-                    }, 1000);
+                    setStatusMessage('Generating TNC Registration URL failed');
                 }
-            }, []);
+            }
 
-            return (
-                <div>
-                    {showLoader && (
-                        <div className="fixed inset-0 flex items-center justify-center bg-white bg-opacity-80 z-50">
-                            <div className="text-center">
-                                {loaderState === 'loading' && (
-                                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                                )}
-                                {loaderState === 'success' && (
-                                    <div className="inline-block">
-                                        <span className="material-symbols-outlined text-6xl text-green-500">
-                                            check_circle
-                                        </span>
-                                    </div>
-                                )}
-                                {loaderState === 'error' && (
-                                    <div className="inline-block">
-                                        <span className="material-symbols-outlined text-6xl text-red-500">
-                                            cancel
-                                        </span>
-                                    </div>
-                                )}
-                                <p className="mt-4 text-gray-700 font-medium text-2xl">{statusMessage}</p>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            );
+            generateUUID() {
+                if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+                    return crypto.randomUUID();
+                }
+
+                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+                    const r = Math.random() * 16 | 0;
+                    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+            }
         }
 
-        ReactDOM.render(<App />, document.getElementById('app'));
+        document.addEventListener('DOMContentLoaded', function() {
+            updateUI();
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const configParam = urlParams.get('config');
+            const config = JSON.parse(decodeURIComponent(configParam));
+
+            if (!(config && config.account_service_base_url && config.leca_service_base_url && config.heartbeat_service_base_url && config.tnc_base_url)) {
+                setStatusMessage('Something is missing in the web address');
+                setLoaderState('error');
+            } else {
+                setTimeout(() => {
+                    const rpcClient = new RPCClient('ws://truenas-installer.local:8080/', config);
+                }, 1000);
+            }
+        });
     </script>
 </body>
 
