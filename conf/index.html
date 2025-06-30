@@ -135,14 +135,12 @@
                     await this.call('authenticate', accessKey)
                     let tncConfig = await this.call('tnc_config')
                     if (!tncConfig.enabled) {
-                        tncConfig = await this.call('configure_tnc', { ...this.config, enabled: true });
+                        tncConfig = await this.call('configure_tnc', [{ ...this.config, enabled: true }]);
                     }
                     if (tncConfig.claim_token_expiration < Math.floor(Date.now() / 1000)) {
                         // TODO: Claim token has expired. Try to re-insert the disc or ISO
                     }
-                    console.log('TNC CONFIG', tncConfig)
                     const urlResult = await this.call('tnc_registration_uri');
-                    console.log('URL RESULT', urlResult)
                     setStatusMessage('The TNC registration URL is ready');
                     window.location.replace(`${urlResult}&installer_token=${accessKey}`)
                 } catch (error) {
