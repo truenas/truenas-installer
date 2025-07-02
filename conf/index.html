@@ -66,7 +66,6 @@
             setupEventHandlers() {
                 this.ws.onopen = (event) => {
                     setStatusMessage('Websocket is connected');
-                    console.log('WebSocket connected', event);
                     this.onConnected();
                 };
 
@@ -75,7 +74,7 @@
                         const response = JSON.parse(event.data);
                         this.handleResponse(response);
                     } catch (error) {
-                        console.error('Failed to parse response:', error);
+                        setStatusMessage('Failed to parse response');
                     }
                 };
 
@@ -83,13 +82,11 @@
                     setShowLoader(true);
                     setStatusMessage('Websocket connection closed');
                     setLoaderState('error');
-                    console.log('WebSocket closed');
                 };
 
                 this.ws.onerror = (error) => {
                     setStatusMessage('WebSocket connection failed');
                     setLoaderState('error');
-                    console.error('WebSocket error:', error);
                 };
             }
 
@@ -137,14 +134,10 @@
                     if (!tncConfig.enabled) {
                         tncConfig = await this.call('configure_tnc', [{ ...this.config, enabled: true }]);
                     }
-                    if (tncConfig.claim_token_expiration < Math.floor(Date.now() / 1000)) {
-                        // TODO: Claim token has expired. Try to re-insert the disc or ISO
-                    }
                     const urlResult = await this.call('tnc_registration_uri');
                     setStatusMessage('The TNC registration URL is ready');
                     window.location.replace(`${urlResult}&installer_token=${accessKey}`)
                 } catch (error) {
-                    console.error('RPC call failed:', error);
                     setLoaderState('error');
                     setStatusMessage('Generating TNC Registration URL failed');
                 }
