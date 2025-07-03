@@ -39,7 +39,7 @@ def main():
         rpc_server = InstallerRPCServer(installer)
         app = web.Application()
         app.router.add_routes([
-            web.get("/", rpc_server.handle_http_request),
+            web.get("/ws", rpc_server.handle_http_request),
         ])
         app.on_shutdown.append(rpc_server.on_shutdown)
         web.run_app(app, port=8080)
