@@ -168,7 +168,7 @@
                 setLoaderState('error');
             } else {
                 setTimeout(() => {
-                    const rpcClient = new RPCClient('ws://truenas-installer.local:8080/', config);
+                    const rpcClient = new RPCClient('ws://truenas-installer.local:8080/ws', config);
                 }, 1000);
             }
         });
