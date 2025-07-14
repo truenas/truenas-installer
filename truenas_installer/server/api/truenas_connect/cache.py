@@ -14,6 +14,7 @@ def default_tnc_config() -> dict:
         'certificate_private_key': None,
         'account_service_base_url': 'https://account-service.staging.truenasconnect.net/',
         'leca_service_base_url': 'https://dns-service.staging.truenasconnect.net/',
+        'heartbeat_service_base_url': 'https://heartbeat-service.staging.truenasconnect.net/',
         'tnc_base_url': 'https://web.staging.truenasconnect.net/',
         'claim_token': None,
         'initialization_in_progress': False,

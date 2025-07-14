@@ -38,6 +38,7 @@ async def tnc_config(context):
         'enabled': {'type': 'boolean'},
         'account_service_base_url': {'type': 'string'},
         'leca_service_base_url': {'type': 'string'},
+        'heartbeat_service_base_url': {'type': 'string'},
         'tnc_base_url': {'type': 'string'},
     },
     'required': ['enabled'],
