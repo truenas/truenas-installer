@@ -41,10 +41,36 @@ async def list_network_interfaces():
     ]
 
 
-async def get_available_ip_addresses():
+def _is_valid_ip_for_connection(ip_obj):
     """
-    Get all available IP addresses on the system that can be used to connect from another machine.
-    Excludes loopback, link-local, and wildcard addresses.
+    Check if an IP address is valid for external connections.
+    Excludes loopback, link-local, wildcard, and multicast addresses.
+    """
+    # Skip loopback addresses
+    if ip_obj.is_loopback:
+        return False
+
+    # Skip link-local addresses
+    if ip_obj.is_link_local:
+        return False
+
+    # Skip wildcard addresses
+    if ip_obj == ipaddress.ip_address("0.0.0.0") or ip_obj == ipaddress.ip_address("::"):
+        return False
+
+    # Skip multicast addresses
+    if ip_obj.is_multicast:
+        return False
+
+    return True
+
+
+async def _get_ip_addresses_with_filter(interface_filter=None):
+    """
+    Get IP addresses with optional interface filtering.
+
+    Args:
+        interface_filter: None to get all interfaces, or a list of interface names to filter
 
     Returns:
         dict: {"ipv4": [...], "ipv6": [...]}
@@ -64,33 +90,29 @@ async def get_available_ip_addresses():
                     if not ip_str:
                         continue
 
-                    # Get the interface index and check if it's loopback
+                    # Get the interface index and name
                     if_index = addr["index"]
                     try:
                         link = ipr.get_links(if_index)[0]
                         if_name = link.get_attr("IFLA_IFNAME")
-                        if if_name == "lo":
-                            continue
+
+                        # Apply interface filter
+                        if interface_filter is None:
+                            # Skip loopback for "all interfaces" mode
+                            if if_name == "lo":
+                                continue
+                        else:
+                            # Check if interface is in the filter list
+                            if if_name not in interface_filter:
+                                continue
                     except (IndexError, KeyError):
                         continue
 
                     try:
                         ip_obj = ipaddress.ip_address(ip_str)
 
-                        # Skip loopback addresses
-                        if ip_obj.is_loopback:
-                            continue
-
-                        # Skip link-local addresses
-                        if ip_obj.is_link_local:
-                            continue
-
-                        # Skip wildcard addresses
-                        if ip_obj == ipaddress.ip_address("0.0.0.0") or ip_obj == ipaddress.ip_address("::"):
-                            continue
-
-                        # Skip multicast addresses
-                        if ip_obj.is_multicast:
+                        # Check if IP is valid for connections
+                        if not _is_valid_ip_for_connection(ip_obj):
                             continue
 
                         # Add to appropriate list
@@ -115,10 +137,24 @@ async def get_available_ip_addresses():
                 logger.error("Failed to get IP addresses after %d retries due to NetlinkDumpInterrupted", max_retries)
                 return result
         except Exception as e:
-            logger.error("Error getting IP addresses: %s", e, exc_info=True)
+            if interface_filter:
+                logger.error("Error getting IP addresses for interfaces %s: %s", interface_filter, e, exc_info=True)
+            else:
+                logger.error("Error getting IP addresses: %s", e, exc_info=True)
             return result
 
     return result
+
+
+async def get_available_ip_addresses():
+    """
+    Get all available IP addresses on the system that can be used to connect from another machine.
+    Excludes loopback, link-local, and wildcard addresses.
+
+    Returns:
+        dict: {"ipv4": [...], "ipv6": [...]}
+    """
+    return await _get_ip_addresses_with_filter(interface_filter=None)
 
 
 async def get_interface_ips(interface_names):
@@ -139,73 +175,4 @@ async def get_interface_ips(interface_names):
         if name not in available_names:
             raise ValueError(f"Interface '{name}' not found")
 
-    result = {"ipv4": [], "ipv6": []}
-
-    max_retries = 3
-    for attempt in range(1, max_retries + 1):
-        try:
-            with IPRoute() as ipr:
-                # Get all addresses
-                addresses = ipr.get_addr()
-
-                for addr in addresses:
-                    # Get the IP address
-                    ip_str = addr.get_attr("IFA_ADDRESS")
-                    if not ip_str:
-                        continue
-
-                    # Get the interface index and check if it's in our requested list
-                    if_index = addr["index"]
-                    try:
-                        link = ipr.get_links(if_index)[0]
-                        if_name = link.get_attr("IFLA_IFNAME")
-                        if if_name not in interface_names:
-                            continue
-                    except (IndexError, KeyError):
-                        continue
-
-                    try:
-                        ip_obj = ipaddress.ip_address(ip_str)
-
-                        # Skip loopback addresses
-                        if ip_obj.is_loopback:
-                            continue
-
-                        # Skip link-local addresses
-                        if ip_obj.is_link_local:
-                            continue
-
-                        # Skip wildcard addresses
-                        if ip_obj == ipaddress.ip_address("0.0.0.0") or ip_obj == ipaddress.ip_address("::"):
-                            continue
-
-                        # Skip multicast addresses
-                        if ip_obj.is_multicast:
-                            continue
-
-                        # Add to appropriate list
-                        if isinstance(ip_obj, ipaddress.IPv4Address):
-                            if ip_str not in result["ipv4"]:
-                                result["ipv4"].append(ip_str)
-                        elif isinstance(ip_obj, ipaddress.IPv6Address):
-                            if ip_str not in result["ipv6"]:
-                                result["ipv6"].append(ip_str)
-
-                    except ValueError:
-                        # Invalid IP address, skip
-                        continue
-
-            # Success, break out of retry loop
-            break
-
-        except NetlinkDumpInterrupted:
-            if attempt < max_retries:
-                continue
-            else:
-                logger.error("Failed to get IP addresses after %d retries due to NetlinkDumpInterrupted", max_retries)
-                return result
-        except Exception as e:
-            logger.error("Error getting IP addresses for interfaces %s: %s", interface_names, e, exc_info=True)
-            return result
-
-    return result
+    return await _get_ip_addresses_with_filter(interface_filter=interface_names)
