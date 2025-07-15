@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 from truenas_connect_utils.install_schema import TNC_CONFIG_SCHEMA
 from truenas_connect_utils.urls import get_registration_uri
 
-from truenas_installer.network_interfaces import get_available_ip_addresses
+from truenas_installer.network_interfaces import get_available_ip_addresses, get_interface_ips
 from truenas_installer.server.error import Error
 from truenas_installer.server.method import method
 
@@ -35,6 +35,13 @@ async def tnc_config(context):
                 'type': 'string',  # FIXME: Validate this to be proper IP Addresses
             },
         },
+        'interfaces': {
+            'type': 'array',
+            'items': {
+                'type': 'string',
+            },
+        },
+        'use_all_interfaces': {'type': 'boolean'},
         'enabled': {'type': 'boolean'},
         'account_service_base_url': {'type': 'string'},
         'leca_service_base_url': {'type': 'string'},
@@ -50,22 +57,42 @@ async def configure_tnc(context, data):
     if context.server.configured_tnc is True:
         raise Error('Configuration can only be updated once', errno.EINVAL)
 
-    # Handle IP addresses - either use provided or auto-detect
     if data['enabled']:
-        if 'ips' not in data or not data['ips']:
-            # Auto-detect IPs if not provided
+        # Validation: interfaces and use_all_interfaces are mutually exclusive
+        if data.get('interfaces') and data.get('use_all_interfaces', True):
+            raise Error(
+                'Cannot specify interfaces when use_all_interfaces is true',
+                errno.EINVAL
+            )
+
+        # Set default for use_all_interfaces if not provided
+        if 'use_all_interfaces' not in data:
+            data['use_all_interfaces'] = not bool(data.get('interfaces'))
+
+        # Handle interface-based IP resolution
+        if data.get('interfaces'):
+            # Specific interfaces mode
+            interface_ips = await get_interface_ips(data['interfaces'])
+            data['interfaces_ips'] = interface_ips['ipv4'] + interface_ips['ipv6']
+
+        elif data.get('use_all_interfaces'):
+            # All interfaces mode
             detected_ips = await get_available_ip_addresses()
-            all_ips = detected_ips['ipv4'] + detected_ips['ipv6']
+            data['interfaces_ips'] = detected_ips['ipv4'] + detected_ips['ipv6']
 
-            if not all_ips:
-                raise Error(
-                    'No IP addresses provided and none detected on the system. '
-                    'Please provide IP addresses explicitly.',
-                    errno.EINVAL
-                )
+        else:
+            # use_all_interfaces explicitly False with no interfaces
+            data['interfaces_ips'] = []
 
-            data['ips'] = all_ips
-        # else: use the IPs provided by the user
+        # Validate we have at least one IP (from any source)
+        user_ips = data.get('ips', [])
+        interface_ips = data.get('interfaces_ips', [])
+
+        if not user_ips and not interface_ips:
+            raise Error(
+                'No IP addresses available. Provide IPs, interfaces, or enable use_all_interfaces',
+                errno.EINVAL
+            )
 
         context.server.configured_tnc = True
 
