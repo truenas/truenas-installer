@@ -72,8 +72,12 @@ async def configure_tnc(context, data):
         # Handle interface-based IP resolution
         if data.get('interfaces'):
             # Specific interfaces mode
-            interface_ips = await get_interface_ips(data['interfaces'])
-            data['interfaces_ips'] = interface_ips['ipv4'] + interface_ips['ipv6']
+            try:
+                interface_ips = await get_interface_ips(data['interfaces'])
+                data['interfaces_ips'] = interface_ips['ipv4'] + interface_ips['ipv6']
+            except ValueError as e:
+                # Value error is raised by the util function in case of invalid interface names
+                raise Error(str(e), errno.EINVAL)
 
         elif data.get('use_all_interfaces'):
             # All interfaces mode
