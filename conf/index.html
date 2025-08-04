@@ -120,7 +120,7 @@
             async onConnected() {
                 try {
                     let accessKey = ''
-                    setStatusMessage('Generating TNC Registration URL');
+                    setStatusMessage('Getting things ready...');
                     const isAdopted = await this.call('is_adopted');
                     if (!isAdopted) {
                         accessKey = await this.call('adopt');
@@ -130,8 +130,19 @@
                     }
 
                     await this.call('authenticate', accessKey)
+                    let systemInfo = await this.call('system_info')
+                    if (systemInfo.installation_running) {
+                        setStatusMessage('Installation in progress');
+                        return;
+                    }
+                    setStatusMessage('Generating TNC Registration URL');
                     let tncConfig = await this.call('tnc_config')
+                    console.log('TNC CONFIG', tncConfig)
                     if (!tncConfig.enabled) {
+                        if (!(config && config.account_service_base_url && config.leca_service_base_url && config.heartbeat_service_base_url && config.tnc_base_url)) {
+                            setStatusMessage('Something is missing in the web address');
+                            setLoaderState('error');
+                        }
                         tncConfig = await this.call('configure_tnc', [{ ...this.config, enabled: true }]);
                     }
                     const urlResult = await this.call('tnc_registration_uri');
@@ -163,14 +174,7 @@
             const configParam = urlParams.get('config');
             const config = JSON.parse(decodeURIComponent(configParam));
 
-            if (!(config && config.account_service_base_url && config.leca_service_base_url && config.heartbeat_service_base_url && config.tnc_base_url)) {
-                setStatusMessage('Something is missing in the web address');
-                setLoaderState('error');
-            } else {
-                setTimeout(() => {
-                    const rpcClient = new RPCClient('ws://truenas-installer.local:8080/ws', config);
-                }, 1000);
-            }
+            new RPCClient('ws://truenas-installer.local:8080/ws', config);
         });
     </script>
 </body>
