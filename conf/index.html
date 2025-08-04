@@ -57,15 +57,40 @@
 
         class RPCClient {
             constructor(url, config) {
-                this.ws = new WebSocket(url);
+                this.url = url;
                 this.config = config;
                 this.pendingRequests = new Map();
+                this.pingInterval = null;
+                this.retryCount = 0;
+                this.maxRetries = 5;
+                this.retryIntervals = this.generateRetryIntervals();
+                this.retryTimeout = null;
+                this.connect();
+            }
+
+            generateRetryIntervals() {
+                // Generate intervals: 2, 4, 8, 16, then cap at 20 for remaining retries
+                const intervals = [];
+                for (let i = 0; i < this.maxRetries; i++) {
+                    if (i < 4) {
+                        intervals.push(Math.pow(2, i + 1) * 1000); // 2, 4, 8, 16 seconds
+                    } else {
+                        intervals.push(20000); // Cap at 20 seconds
+                    }
+                }
+                return intervals;
+            }
+
+            connect() {
+                this.ws = new WebSocket(this.url);
                 this.setupEventHandlers();
             }
 
             setupEventHandlers() {
                 this.ws.onopen = (event) => {
                     setStatusMessage('Websocket is connected');
+                    this.retryCount = 0; // Reset retry count on successful connection
+                    this.startPing();
                     this.onConnected();
                 };
 
@@ -79,9 +104,14 @@
                 };
 
                 this.ws.onclose = (event) => {
-                    setShowLoader(true);
-                    setStatusMessage('Websocket connection closed');
-                    setLoaderState('error');
+                    this.stopPing();
+                    if (this.retryCount < this.maxRetries) {
+                        this.scheduleRetry();
+                    } else {
+                        setShowLoader(true);
+                        setStatusMessage('Websocket connection failed after 5 retries');
+                        setLoaderState('error');
+                    }
                 };
 
                 this.ws.onerror = (error) => {
@@ -114,11 +144,74 @@
                     } else {
                         resolve(response.result);
                     }
+                } else if (response.method) {
+                    this.handleEvent(response);
+                }
+            }
+
+            handleEvent(event) {
+                switch (event.method) {
+                    case 'installation_progress':
+                        this.onInstallationProgress(event.params[0]);
+                        break;
+                    default:
+                        console.error('Unhandled event:', event);
+                }
+            }
+
+            onInstallationProgress(data) {
+                const { progress, message } = data;
+                const percentage = Math.round(progress * 100);
+                setStatusMessage(`${message} (${percentage}%)`);
+                setLoaderState('loading');
+                setShowLoader(true);
+            }
+
+            startPing() {
+                this.pingInterval = setInterval(() => {
+                    this.ping();
+                }, 30000);
+            }
+
+            stopPing() {
+                if (this.pingInterval) {
+                    clearInterval(this.pingInterval);
+                    this.pingInterval = null;
+                }
+            }
+
+            scheduleRetry() {
+                this.retryCount++;
+                const currentInterval = this.retryIntervals[Math.min(this.retryCount - 1, this.retryIntervals.length - 1)];
+                const seconds = currentInterval / 1000;
+                setStatusMessage(`Connection lost. Retrying in ${seconds} seconds... (${this.retryCount}/${this.maxRetries})`);
+                setLoaderState('loading');
+                setShowLoader(true);
+                
+                this.retryTimeout = setTimeout(() => {
+                    console.log(`Attempting reconnection ${this.retryCount}/${this.maxRetries}`);
+                    this.connect();
+                }, currentInterval);
+            }
+
+            cleanup() {
+                this.stopPing();
+                if (this.retryTimeout) {
+                    clearTimeout(this.retryTimeout);
+                    this.retryTimeout = null;
+                }
+            }
+
+            async ping() {
+                try {
+                    await this.call('system_info');
+                } catch (error) {
+                    console.error('Ping failed:', error);
                 }
             }
 
             async onConnected() {
-                try {
+                 try {
                     let accessKey = ''
                     setStatusMessage('Getting things ready...');
                     const isAdopted = await this.call('is_adopted');
@@ -135,20 +228,25 @@
                         setStatusMessage('Installation in progress');
                         return;
                     }
-                    setStatusMessage('Generating TNC Registration URL');
                     let tncConfig = await this.call('tnc_config')
-                    console.log('TNC CONFIG', tncConfig)
+                    if (Object.keys(tncConfig.registration_details).length) {
+                        setStatusMessage('Please continue the setup in TNC UI');
+                        return
+                    }
+                    
                     if (!tncConfig.enabled) {
-                        if (!(config && config.account_service_base_url && config.leca_service_base_url && config.heartbeat_service_base_url && config.tnc_base_url)) {
+                        if (!(this.config && this.config.account_service_base_url && this.config.leca_service_base_url && this.config.heartbeat_service_base_url && this.config.tnc_base_url)) {
                             setStatusMessage('Something is missing in the web address');
                             setLoaderState('error');
                         }
                         tncConfig = await this.call('configure_tnc', [{ ...this.config, enabled: true }]);
                     }
+                    setStatusMessage('Generating TNC Registration URL');
                     const urlResult = await this.call('tnc_registration_uri');
                     setStatusMessage('The TNC registration URL is ready');
                     window.location.replace(`${urlResult}&installer_token=${accessKey}`)
                 } catch (error) {
+                    console.error(error)
                     setLoaderState('error');
                     setStatusMessage('Generating TNC Registration URL failed');
                 }
@@ -172,9 +270,14 @@
             
             const urlParams = new URLSearchParams(window.location.search);
             const configParam = urlParams.get('config');
-            const config = JSON.parse(decodeURIComponent(configParam));
+            try {
+                const config = JSON.parse(decodeURIComponent(configParam));
 
-            new RPCClient('ws://truenas-installer.local:8080/ws', config);
+                new RPCClient('ws://truenas-installer.local:8080/ws', config);
+            } catch (error) {
+                setStatusMessage('Invalid URL');
+                setLoaderState('error');   
+            }
         });
     </script>
 </body>
