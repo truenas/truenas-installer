@@ -253,7 +253,7 @@
                 } catch (error) {
                     console.error(error)
                     setLoaderState('error');
-                    setStatusMessage('Generating TNC Registration URL failed');
+                    setStatusMessage(error?.message || 'Generating TNC Registration URL failed');
                 }
             }
 
@@ -280,6 +280,7 @@
 
                 new RPCClient('ws://truenas-installer.local:8080/ws', config);
             } catch (error) {
+                console.error(error)
                 setStatusMessage('Invalid URL');
                 setLoaderState('error');   
             }
