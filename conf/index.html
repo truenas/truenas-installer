@@ -61,23 +61,13 @@
                 this.config = config;
                 this.pendingRequests = new Map();
                 this.pingInterval = null;
-                this.retryCount = 0;
-                this.maxRetries = 121;
-                this.retryIntervals = this.generateRetryIntervals();
+                this.retryStartTime = null;
+                this.maxRetryDuration = 10 * 60 * 1000; // 10 minutes in milliseconds
+                this.retryInterval = 5000; // 5 seconds
                 this.retryTimeout = null;
                 this.connect();
             }
 
-            generateRetryIntervals() {
-                // Generate intervals: 2, 3, 5, 5, 5, 5 & etc (total: 600 seconds = 10 minutes)
-                const intervals = [];
-                for (let i = 0; i < this.maxRetries; i++) {
-                    if (i === 0) intervals.push(2000);       // 2 seconds
-                    else if (i === 1) intervals.push(3000);  // 3 seconds
-                    else intervals.push(5000);               // 5 seconds for all remaining retries
-                }
-                return intervals;
-            }
 
             connect() {
                 this.ws = new WebSocket(this.url);
@@ -87,7 +77,7 @@
             setupEventHandlers() {
                 this.ws.onopen = (event) => {
                     setStatusMessage('Websocket is connected');
-                    this.retryCount = 0; // Reset retry count on successful connection
+                    this.retryStartTime = null; // Reset retry timer on successful connection
                     this.startPing();
                     this.onConnected();
                 };
@@ -103,7 +93,15 @@
 
                 this.ws.onclose = (event) => {
                     this.stopPing();
-                    if (this.retryCount < this.maxRetries) {
+                    
+                    // Start retry timer on first failure
+                    if (this.retryStartTime === null) {
+                        this.retryStartTime = Date.now();
+                    }
+                    
+                    // Check if we've exceeded the maximum retry duration
+                    const elapsedTime = Date.now() - this.retryStartTime;
+                    if (elapsedTime < this.maxRetryDuration) {
                         this.scheduleRetry();
                     } else {
                         setShowLoader(true);
@@ -179,15 +177,13 @@
             }
 
             scheduleRetry() {
-                this.retryCount++;
-                const currentInterval = this.retryIntervals[Math.min(this.retryCount - 1, this.retryIntervals.length - 1)];
                 setStatusMessage(`Connection lost. Retrying...`);
                 setLoaderState('loading');
                 setShowLoader(true);
                 
                 this.retryTimeout = setTimeout(() => {
                     this.connect();
-                }, currentInterval);
+                }, this.retryInterval);
             }
 
             cleanup() {
@@ -241,14 +237,14 @@
                     if (!tncConfig.enabled) {
                         tncConfig = await this.call('configure_tnc', [{ ...this.config, enabled: true }]);
                     }
-                    setStatusMessage('Generating TNC Registration URL');
+                    setStatusMessage('Generating TrueNAS Connect registration URL');
                     const urlResult = await this.call('tnc_registration_uri');
-                    setStatusMessage('The TNC registration URL is ready');
+                    setStatusMessage('The TrueNAS Connect registration URL is ready');
                     window.location.replace(`${urlResult}&installer_token=${accessKey}`)
                 } catch (error) {
                     console.error(error)
                     setLoaderState('error');
-                    setStatusMessage(error?.message || 'Generating TNC Registration URL failed');
+                    setStatusMessage(error?.message || 'Generating TrueNAS Connect registration URL failed');
                 }
             }
 
