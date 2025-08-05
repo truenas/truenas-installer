@@ -238,12 +238,12 @@
                         setStatusMessage('Please continue the setup in TNC UI');
                         return
                     }
-                    
-                    if (!tncConfig.enabled) {
-                        if (!(this.config && this.config.account_service_base_url && this.config.leca_service_base_url && this.config.heartbeat_service_base_url && this.config.tnc_base_url)) {
+                    if (!(this.config && this.config.account_service_base_url && this.config.leca_service_base_url && this.config.heartbeat_service_base_url && this.config.tnc_base_url)) {
                             setStatusMessage('Something is missing in the web address');
                             setLoaderState('error');
+                            return;
                         }
+                    if (!tncConfig.enabled) {
                         tncConfig = await this.call('configure_tnc', [{ ...this.config, enabled: true }]);
                     }
                     setStatusMessage('Generating TNC Registration URL');
