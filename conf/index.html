@@ -62,26 +62,19 @@
                 this.pendingRequests = new Map();
                 this.pingInterval = null;
                 this.retryCount = 0;
-                this.maxRetries = 10;
+                this.maxRetries = 121;
                 this.retryIntervals = this.generateRetryIntervals();
                 this.retryTimeout = null;
                 this.connect();
             }
 
             generateRetryIntervals() {
-                // Generate intervals: 1, 2, 3, 4, 5, 30, 60, 120, 180, 190 (total: 600 seconds = 10 minutes)
+                // Generate intervals: 2, 3, 5, 5, 5, 5 & etc (total: 600 seconds = 10 minutes)
                 const intervals = [];
                 for (let i = 0; i < this.maxRetries; i++) {
-                    if (i === 0) intervals.push(1000);       // 1 second
-                    else if (i === 1) intervals.push(2000);  // 2 seconds
-                    else if (i === 2) intervals.push(3000);  // 3 seconds
-                    else if (i === 3) intervals.push(4000);  // 4 seconds
-                    else if (i === 4) intervals.push(5000);  // 5 seconds
-                    else if (i === 5) intervals.push(30000); // 30 seconds
-                    else if (i === 6) intervals.push(60000); // 60 seconds
-                    else if (i === 7) intervals.push(120000); // 120 seconds
-                    else if (i === 8) intervals.push(180000); // 180 seconds
-                    else intervals.push(190000);             // 190 seconds for final retry
+                    if (i === 0) intervals.push(2000);       // 2 seconds
+                    else if (i === 1) intervals.push(3000);  // 3 seconds
+                    else intervals.push(5000);               // 5 seconds for all remaining retries
                 }
                 return intervals;
             }
@@ -114,7 +107,7 @@
                         this.scheduleRetry();
                     } else {
                         setShowLoader(true);
-                        setStatusMessage('Websocket connection failed after 10 retries');
+                        setStatusMessage('Websocket connection failed');
                         setLoaderState('error');
                     }
                 };
@@ -188,13 +181,11 @@
             scheduleRetry() {
                 this.retryCount++;
                 const currentInterval = this.retryIntervals[Math.min(this.retryCount - 1, this.retryIntervals.length - 1)];
-                const seconds = currentInterval / 1000;
-                setStatusMessage(`Connection lost. Retrying in ${seconds} seconds... (${this.retryCount}/${this.maxRetries})`);
+                setStatusMessage(`Connection lost. Retrying...`);
                 setLoaderState('loading');
                 setShowLoader(true);
                 
                 this.retryTimeout = setTimeout(() => {
-                    console.log(`Attempting reconnection ${this.retryCount}/${this.maxRetries}`);
                     this.connect();
                 }, currentInterval);
             }
@@ -241,7 +232,7 @@
                          throw({ message : tncConfig.initialization_error})
                     }
                     if (Object.keys(tncConfig.registration_details).length) {
-                        setStatusMessage('Please continue the setup in TNC UI');
+                        setStatusMessage('Please continue the setup in TrueNAS Connect UI');
                         return
                     }
                     if (!(this.config && this.config.account_service_base_url && this.config.leca_service_base_url && this.config.heartbeat_service_base_url && this.config.tnc_base_url)) {
