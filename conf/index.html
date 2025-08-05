@@ -226,6 +226,9 @@
                     } else {
                         accessKey = localStorage.getItem('accessKey');
                     }
+                    if (!accessKey) {
+                        throw({ message : 'No Access Key'})
+                    }
 
                     await this.call('authenticate', accessKey)
                     let systemInfo = await this.call('system_info')
@@ -234,14 +237,15 @@
                         return;
                     }
                     let tncConfig = await this.call('tnc_config')
+                    if (tncConfig.initialization_error) {
+                         throw({ message : tncConfig.initialization_error})
+                    }
                     if (Object.keys(tncConfig.registration_details).length) {
                         setStatusMessage('Please continue the setup in TNC UI');
                         return
                     }
                     if (!(this.config && this.config.account_service_base_url && this.config.leca_service_base_url && this.config.heartbeat_service_base_url && this.config.tnc_base_url)) {
-                            setStatusMessage('Something is missing in the web address');
-                            setLoaderState('error');
-                            return;
+                            throw({ message : 'Something is missing in the web address'})
                         }
                     if (!tncConfig.enabled) {
                         tncConfig = await this.call('configure_tnc', [{ ...this.config, enabled: true }]);
@@ -282,7 +286,7 @@
             } catch (error) {
                 console.error(error)
                 setStatusMessage('Invalid URL');
-                setLoaderState('error');   
+                setLoaderState('error');
             }
         });
     </script>
