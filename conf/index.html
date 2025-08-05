@@ -62,21 +62,26 @@
                 this.pendingRequests = new Map();
                 this.pingInterval = null;
                 this.retryCount = 0;
-                this.maxRetries = 5;
+                this.maxRetries = 10;
                 this.retryIntervals = this.generateRetryIntervals();
                 this.retryTimeout = null;
                 this.connect();
             }
 
             generateRetryIntervals() {
-                // Generate intervals: 2, 4, 8, 16, then cap at 20 for remaining retries
+                // Generate intervals: 1, 2, 3, 4, 5, 30, 60, 120, 180, 190 (total: 600 seconds = 10 minutes)
                 const intervals = [];
                 for (let i = 0; i < this.maxRetries; i++) {
-                    if (i < 4) {
-                        intervals.push(Math.pow(2, i + 1) * 1000); // 2, 4, 8, 16 seconds
-                    } else {
-                        intervals.push(20000); // Cap at 20 seconds
-                    }
+                    if (i === 0) intervals.push(1000);       // 1 second
+                    else if (i === 1) intervals.push(2000);  // 2 seconds
+                    else if (i === 2) intervals.push(3000);  // 3 seconds
+                    else if (i === 3) intervals.push(4000);  // 4 seconds
+                    else if (i === 4) intervals.push(5000);  // 5 seconds
+                    else if (i === 5) intervals.push(30000); // 30 seconds
+                    else if (i === 6) intervals.push(60000); // 60 seconds
+                    else if (i === 7) intervals.push(120000); // 120 seconds
+                    else if (i === 8) intervals.push(180000); // 180 seconds
+                    else intervals.push(190000);             // 190 seconds for final retry
                 }
                 return intervals;
             }
@@ -109,7 +114,7 @@
                         this.scheduleRetry();
                     } else {
                         setShowLoader(true);
-                        setStatusMessage('Websocket connection failed after 5 retries');
+                        setStatusMessage('Websocket connection failed after 10 retries');
                         setLoaderState('error');
                     }
                 };
