@@ -110,6 +110,8 @@ async def install(context, params):
         )
     except InstallError as e:
         raise Error(e.message, errno.EFAULT)
+    else:
+        context.server.installation_completed = True
 
 
 def callback(server, progress, message):
