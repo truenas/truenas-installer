@@ -109,6 +109,7 @@ async def install(context, params):
             functools.partial(callback, context.server),
         )
     except InstallError as e:
+        context.server.installation_error = str(e)
         raise Error(e.message, errno.EFAULT)
     else:
         context.server.installation_completed = True
