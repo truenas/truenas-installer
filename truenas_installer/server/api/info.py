@@ -15,6 +15,7 @@ __all__ = ["system_info", "list_disks", "list_network_interfaces", "get_availabl
     "type": "object",
     "properties": {
         "installation_running": {"type": "boolean"},
+        "installation_completed": {"type": "string"},
         "version": {"type": "string"},
         "efi": {"type": "boolean"},
     },
@@ -25,6 +26,7 @@ async def system_info(context):
     """
     return {
         "installation_running": installation_lock.locked(),
+        "installation_completed": context.server.installation_completed,
         "version": context.server.installer.version,
         "efi": context.server.installer.efi,
     }
