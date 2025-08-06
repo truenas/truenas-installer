@@ -28,6 +28,7 @@ async def system_info(context):
     return {
         "installation_running": installation_lock.locked(),
         "installation_completed": context.server.installation_completed,
+        "installation_error": context.server.installation_error,
         "version": context.server.installer.version,
         "efi": context.server.installer.efi,
     }
