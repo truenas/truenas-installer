@@ -15,7 +15,7 @@ __all__ = ["system_info", "list_disks", "list_network_interfaces", "get_availabl
     "type": "object",
     "properties": {
         "installation_running": {"type": "boolean"},
-        "installation_completed": {"type": "string"},
+        "installation_completed": {"type": "boolean"},
         "installation_error": {'oneOf': [{'type': 'null'}, {'type': 'string'}]},
         "version": {"type": "string"},
         "efi": {"type": "boolean"},
