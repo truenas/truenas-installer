@@ -5,12 +5,93 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TrueNAS Installer</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            background-color: #f3f4f6;
+            font-family: system-ui, -apple-system, sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .loader-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(255, 255, 255, 0.8);
+            z-index: 50;
+        }
+
+        .loader-content {
+            text-align: center;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 48px;
+            height: 48px;
+            border: 2px solid transparent;
+            border-bottom: 2px solid #2563eb;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .icon-large {
+            font-size: 48px !important;
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 48;
+            line-height: 1;
+            display: inline-block;
+        }
+
+        .text-success {
+            color: #10b981;
+        }
+
+        .text-error {
+            color: #ef4444;
+        }
+
+        .status-message {
+            margin-top: 1rem;
+            color: #374151;
+            font-weight: 500;
+            font-size: 1.5rem;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #171717;
+                color: #f9fafb;
+            }
+
+            .loader-overlay {
+                background-color: #171717;
+            }
+
+            .status-message {
+                color: #d1d5db;
+            }
+        }
+    </style>
     <link rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" />
 </head>
 
-<body class="bg-gray-100 min-h-screen">
+<body>
     <div id="app"></div>
 
     <script>
@@ -23,15 +104,15 @@
             
             if (showLoader) {
                 app.innerHTML = `
-                    <div class="fixed inset-0 flex items-center justify-center bg-white bg-opacity-80 z-50">
-                        <div class="text-center">
+                    <div class="loader-overlay">
+                        <div class="loader-content">
                             ${loaderState === 'loading' ? 
-                                '<div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>' : ''}
+                                '<div class="spinner"></div>' : ''}
                             ${loaderState === 'success' ? 
-                                '<div class="inline-block"><span class="material-symbols-outlined text-6xl text-green-500">check_circle</span></div>' : ''}
+                                '<div><span class="material-symbols-outlined icon-large text-success">check_circle</span></div>' : ''}
                             ${loaderState === 'error' ? 
-                                '<div class="inline-block"><span class="material-symbols-outlined text-6xl text-red-500">cancel</span></div>' : ''}
-                            <p class="mt-4 text-gray-700 font-medium text-2xl">${statusMessage}</p>
+                                '<div><span class="material-symbols-outlined icon-large text-error">cancel</span></div>' : ''}
+                            <p class="status-message">${statusMessage}</p>
                         </div>
                     </div>
                 `;
@@ -130,6 +211,16 @@
                     }
 
                     await this.call('authenticate', accessKey)
+                    let systemInfo = await this.call('system_info')
+                    if (systemInfo.installation_completed) {
+                        setStatusMessage('Installation complete');
+                        setLoaderState('success');
+                        return;
+                    }
+                    if (systemInfo.installation_running) {
+                        setStatusMessage('Installation in progress');
+                        return;
+                    }
                     let tncConfig = await this.call('tnc_config')
                     if (!tncConfig.enabled) {
                         tncConfig = await this.call('configure_tnc', [{ ...this.config, enabled: true }]);
