@@ -6,12 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TrueNAS Installer</title>
     <style>
+        /* Base Reset */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
+        /* Body Styles */
         body {
             min-height: 100vh;
             background-color: #f3f4f6;
@@ -19,12 +21,10 @@
             transition: background-color 0.3s, color 0.3s;
         }
 
+        /* Loader Components */
         .loader-overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
+            inset: 0;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -50,6 +50,7 @@
             to { transform: rotate(360deg); }
         }
 
+        /* Icon Styles */
         .icon-large {
             font-size: 48px !important;
             font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 48;
@@ -57,13 +58,9 @@
             display: inline-block;
         }
 
-        .text-success {
-            color: #10b981;
-        }
-
-        .text-error {
-            color: #ef4444;
-        }
+        /* Text Utilities */
+        .text-success { color: #10b981; }
+        .text-error { color: #ef4444; }
 
         .status-message {
             margin-top: 1rem;
@@ -72,6 +69,7 @@
             font-size: 1.5rem;
         }
 
+        /* Dark Mode */
         @media (prefers-color-scheme: dark) {
             body {
                 background-color: #171717;
@@ -92,61 +90,99 @@
 </head>
 
 <body>
-    <div id="app"></div>
+    <main id="app" role="main" aria-live="polite"></main>
 
     <script>
-        let showLoader = true;
-        let loaderState = 'loading';
-        let statusMessage = 'Connecting...';
+        // UI State Management
+        class UIState {
+            constructor() {
+                this.showLoader = true;
+                this.loaderState = 'loading';
+                this.statusMessage = 'Connecting...';
+            }
 
-        function updateUI() {
-            const app = document.getElementById('app');
-            
-            if (showLoader) {
+            updateUI() {
+                const app = document.getElementById('app');
+                
+                if (!this.showLoader) {
+                    app.innerHTML = '';
+                    return;
+                }
+
+                const iconHTML = this.getIconHTML();
                 app.innerHTML = `
                     <div class="loader-overlay">
                         <div class="loader-content">
-                            ${loaderState === 'loading' ? 
-                                '<div class="spinner"></div>' : ''}
-                            ${loaderState === 'success' ? 
-                                '<div><span class="material-symbols-outlined icon-large text-success">check_circle</span></div>' : ''}
-                            ${loaderState === 'error' ? 
-                                '<div><span class="material-symbols-outlined icon-large text-error">cancel</span></div>' : ''}
-                            <p class="status-message">${statusMessage}</p>
+                            ${iconHTML}
+                            <p class="status-message">${this.statusMessage}</p>
                         </div>
                     </div>
                 `;
-            } else {
-                app.innerHTML = '';
+            }
+
+            getIconHTML() {
+                const iconMap = {
+                    loading: '<div class="spinner"></div>',
+                    success: '<div><span class="material-symbols-outlined icon-large text-success">check_circle</span></div>',
+                    error: '<div><span class="material-symbols-outlined icon-large text-error">cancel</span></div>'
+                };
+                return iconMap[this.loaderState] || '';
+            }
+
+            setShowLoader(value) {
+                this.showLoader = value;
+                this.updateUI();
+            }
+
+            setLoaderState(value) {
+                this.loaderState = value;
+                this.updateUI();
+            }
+
+            setStatusMessage(value) {
+                this.statusMessage = value;
+                this.updateUI();
+            }
+
+            setStatus(message, state = null) {
+                this.statusMessage = message;
+                if (state) this.loaderState = state;
+                this.updateUI();
             }
         }
 
-        function setShowLoader(value) {
-            showLoader = value;
-            updateUI();
-        }
-
-        function setLoaderState(value) {
-            loaderState = value;
-            updateUI();
-        }
-
-        function setStatusMessage(value) {
-            statusMessage = value;
-            updateUI();
-        }
+        // Global UI instance
+        const uiState = new UIState();
+        
+        // Legacy function wrappers for compatibility
+        const setShowLoader = (value) => uiState.setShowLoader(value);
+        const setLoaderState = (value) => uiState.setLoaderState(value);
+        const setStatusMessage = (value) => uiState.setStatusMessage(value);
 
         class RPCClient {
             constructor(url, config) {
                 this.ws = new WebSocket(url);
                 this.config = config;
                 this.pendingRequests = new Map();
+                this.pingInterval = null;
+                this.retryStartTime = null;
+                this.maxRetryDuration = 10 * 60 * 1000;
+                this.retryInterval = 5000;
+                this.retryTimeout = null;
+                this.connect();
+            }
+
+
+            connect() {
+                this.ws = new WebSocket(this.url);
                 this.setupEventHandlers();
             }
 
             setupEventHandlers() {
-                this.ws.onopen = (event) => {
-                    setStatusMessage('Websocket is connected');
+                this.ws.onopen = () => {
+                    uiState.setStatus('Websocket is connected');
+                    this.retryStartTime = null;
+                    this.startPing();
                     this.onConnected();
                 };
 
@@ -155,20 +191,32 @@
                         const response = JSON.parse(event.data);
                         this.handleResponse(response);
                     } catch (error) {
-                        setStatusMessage('Failed to parse response');
+                        uiState.setStatus('Failed to parse response', 'error');
                     }
                 };
 
-                this.ws.onclose = (event) => {
-                    setShowLoader(true);
-                    setStatusMessage('Websocket connection closed');
-                    setLoaderState('error');
+                this.ws.onclose = () => {
+                    this.stopPing();
+                    this.handleConnectionLoss();
                 };
 
-                this.ws.onerror = (error) => {
-                    setStatusMessage('WebSocket connection failed');
-                    setLoaderState('error');
+                this.ws.onerror = () => {
+                    uiState.setStatus('WebSocket connection failed', 'error');
                 };
+            }
+
+            handleConnectionLoss() {
+                if (this.retryStartTime === null) {
+                    this.retryStartTime = Date.now();
+                }
+                
+                const elapsedTime = Date.now() - this.retryStartTime;
+                if (elapsedTime < this.maxRetryDuration) {
+                    this.scheduleRetry();
+                } else {
+                    uiState.setStatus('Websocket connection failed', 'error');
+                    uiState.setShowLoader(true);
+                }
             }
 
             call(method, params = []) {
@@ -195,42 +243,155 @@
                     } else {
                         resolve(response.result);
                     }
+                } else if (response.method) {
+                    this.handleEvent(response);
+                }
+            }
+
+            handleEvent(event) {
+                switch (event.method) {
+                    case 'installation_progress':
+                        this.onInstallationProgress(event.params[0]);
+                        break;
+                    default:
+                        console.error('Unhandled event:', event);
+                }
+            }
+
+            onInstallationProgress(data) {
+                const { progress, message } = data;
+                const percentage = Math.round(progress * 100);
+                uiState.setStatus(`${message} (${percentage}%)`, 'loading');
+                uiState.setShowLoader(true);
+            }
+
+            startPing() {
+                this.pingInterval = setInterval(() => {
+                    this.ping();
+                }, 30000);
+            }
+
+            stopPing() {
+                if (this.pingInterval) {
+                    clearInterval(this.pingInterval);
+                    this.pingInterval = null;
+                }
+            }
+
+            scheduleRetry() {
+                uiState.setStatus('Connection lost. Retrying...', 'loading');
+                uiState.setShowLoader(true);
+                
+                this.retryTimeout = setTimeout(() => {
+                    this.connect();
+                }, this.retryInterval);
+            }
+
+            cleanup() {
+                this.stopPing();
+                if (this.retryTimeout) {
+                    clearTimeout(this.retryTimeout);
+                    this.retryTimeout = null;
+                }
+            }
+
+            async ping() {
+                try {
+                    await this.call('system_info');
+                } catch (error) {
+                    console.error('Ping failed:', error);
                 }
             }
 
             async onConnected() {
                 try {
-                    let accessKey = ''
-                    setStatusMessage('Generating TNC Registration URL');
-                    const isAdopted = await this.call('is_adopted');
-                    if (!isAdopted) {
-                        accessKey = await this.call('adopt');
-                        localStorage.setItem('accessKey', accessKey);
-                    } else {
-                        accessKey = localStorage.getItem('accessKey');
+                    const accessKey = await this.handleAuthentication();
+                    const systemInfo = await this.call('system_info');
+                    
+                    if (await this.handleSystemStatus(systemInfo)) {
+                        return;
                     }
 
-                    await this.call('authenticate', accessKey)
-                    let systemInfo = await this.call('system_info')
-                    if (systemInfo.installation_completed) {
-                        setStatusMessage('Installation complete');
-                        setLoaderState('success');
-                        return;
-                    }
-                    if (systemInfo.installation_running) {
-                        setStatusMessage('Installation in progress');
-                        return;
-                    }
-                    let tncConfig = await this.call('tnc_config')
-                    if (!tncConfig.enabled) {
-                        tncConfig = await this.call('configure_tnc', [{ ...this.config, enabled: true }]);
-                    }
-                    const urlResult = await this.call('tnc_registration_uri');
-                    setStatusMessage('The TNC registration URL is ready');
-                    window.location.replace(`${urlResult}&installer_token=${accessKey}`)
+                    await this.handleTNCSetup(accessKey);
                 } catch (error) {
-                    setLoaderState('error');
-                    setStatusMessage('Generating TNC Registration URL failed');
+                    console.error(error);
+                    uiState.setStatus(
+                        error?.message || 'Setup failed', 
+                        'error'
+                    );
+                }
+            }
+
+            async handleAuthentication() {
+                uiState.setStatus('Getting things ready...');
+                const isAdopted = await this.call('is_adopted');
+                
+                let accessKey;
+                if (!isAdopted) {
+                    accessKey = await this.call('adopt');
+                    localStorage.setItem('accessKey', accessKey);
+                } else {
+                    accessKey = localStorage.getItem('accessKey');
+                }
+
+                if (!accessKey) {
+                    throw new Error('No Access Key');
+                }
+
+                await this.call('authenticate', accessKey);
+                return accessKey;
+            }
+
+            async handleSystemStatus(systemInfo) {
+                if (systemInfo.installation_completed) {
+                    uiState.setStatus('Installation complete', 'success');
+                    return true;
+                }
+                if (systemInfo.installation_running) {
+                    uiState.setStatus('Installation in progress');
+                    return true;
+                }
+                return false;
+            }
+
+            async handleTNCSetup(accessKey) {
+                const tncConfig = await this.call('tnc_config');
+                
+                if (tncConfig.initialization_error) {
+                    throw new Error(tncConfig.initialization_error);
+                }
+                
+                if (Object.keys(tncConfig.registration_details).length) {
+                    uiState.setStatus('Please continue the setup in TrueNAS Connect UI');
+                    return;
+                }
+
+                this.validateConfig();
+                
+                if (!tncConfig.enabled) {
+                    await this.call('configure_tnc', [{ ...this.config, enabled: true }]);
+                }
+
+                uiState.setStatus('Generating TrueNAS Connect registration URL');
+                const urlResult = await this.call('tnc_registration_uri');
+                uiState.setStatus('The TrueNAS Connect registration URL is ready');
+                
+                window.location.replace(`${urlResult}&installer_token=${accessKey}`);
+            }
+
+            validateConfig() {
+                const requiredFields = [
+                    'account_service_base_url',
+                    'leca_service_base_url', 
+                    'heartbeat_service_base_url',
+                    'tnc_base_url'
+                ];
+                
+                const hasAllFields = this.config && 
+                    requiredFields.every(field => this.config[field]);
+                    
+                if (!hasAllFields) {
+                    throw new Error('Missing required configuration');
                 }
             }
 
@@ -247,21 +408,41 @@
             }
         }
 
-        document.addEventListener('DOMContentLoaded', function() {
-            updateUI();
-            
-            const urlParams = new URLSearchParams(window.location.search);
-            const configParam = urlParams.get('config');
-            const config = JSON.parse(decodeURIComponent(configParam));
-
-            if (!(config && config.account_service_base_url && config.leca_service_base_url && config.heartbeat_service_base_url && config.tnc_base_url)) {
-                setStatusMessage('Something is missing in the web address');
-                setLoaderState('error');
-            } else {
-                setTimeout(() => {
-                    const rpcClient = new RPCClient('ws://truenas-installer.local:8080/ws', config);
-                }, 1000);
+        // Application Initialization
+        class App {
+            constructor() {
+                this.init();
             }
+
+            init() {
+                uiState.updateUI();
+                this.initializeRPCClient();
+            }
+
+            initializeRPCClient() {
+                try {
+                    const config = this.parseUrlConfig();
+                    new RPCClient('ws://truenas-installer.local:8080/ws', config);
+                } catch (error) {
+                    console.error(error);
+                    uiState.setStatus('Invalid URL', 'error');
+                }
+            }
+
+            parseUrlConfig() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const configParam = urlParams.get('config');
+                
+                if (!configParam) {
+                    throw new Error('No configuration provided');
+                }
+
+                return JSON.parse(decodeURIComponent(configParam));
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            new App();
         });
     </script>
 </body>
