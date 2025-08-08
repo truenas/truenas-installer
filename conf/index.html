@@ -16,7 +16,8 @@
         /* Body Styles */
         body {
             min-height: 100vh;
-            background-color: #f3f4f6;
+            background-color: #171717;
+            color: #f9fafb;
             font-family: system-ui, -apple-system, sans-serif;
             transition: background-color 0.3s, color 0.3s;
         }
@@ -28,7 +29,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background-color: rgba(255, 255, 255, 0.8);
+            background-color: #171717;
             z-index: 50;
         }
 
@@ -64,25 +65,9 @@
 
         .status-message {
             margin-top: 1rem;
-            color: #374151;
+            color: #d1d5db;
             font-weight: 500;
             font-size: 1.5rem;
-        }
-
-        /* Dark Mode */
-        @media (prefers-color-scheme: dark) {
-            body {
-                background-color: #171717;
-                color: #f9fafb;
-            }
-
-            .loader-overlay {
-                background-color: #171717;
-            }
-
-            .status-message {
-                color: #d1d5db;
-            }
         }
     </style>
     <link rel="stylesheet"
