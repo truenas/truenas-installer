@@ -48,7 +48,9 @@
         }
 
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         /* Icon Styles */
@@ -60,8 +62,13 @@
         }
 
         /* Text Utilities */
-        .text-success { color: #10b981; }
-        .text-error { color: #ef4444; }
+        .text-success {
+            color: #10b981;
+        }
+
+        .text-error {
+            color: #ef4444;
+        }
 
         .status-message {
             margin-top: 1rem;
@@ -77,13 +84,9 @@
             left: 50%;
             transform: translate(-50%, -50%);
             width: 100%;
-            max-width: 600px;
-            /* height: 40vh; */
-            max-height: 800px;
+            max-width: 448px;
             height: 100%;
-            /* background-color: #1f2937; */
-            border-radius: 12px;
-            /* box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); */
+            max-height: 426px;
             z-index: 1000;
             overflow: hidden;
         }
@@ -116,7 +119,7 @@
 
             updateUI() {
                 const app = document.getElementById('app');
-                
+
                 if (!this.showLoader) {
                     app.innerHTML = '';
                     return;
@@ -166,23 +169,24 @@
 
         // Global UI instance
         const uiState = new UIState();
-        
+
         // Legacy function wrappers for compatibility
         const setShowLoader = (value) => uiState.setShowLoader(value);
         const setLoaderState = (value) => uiState.setLoaderState(value);
         const setStatusMessage = (value) => uiState.setStatusMessage(value);
 
         class RPCClient {
-            constructor(url, config, tokens) {
+            constructor(url, config, token) {
                 this.url = url;
                 this.config = config;
-                this.tokens = tokens;
+                this.token = token;
                 this.pendingRequests = new Map();
                 this.pingInterval = null;
                 this.retryStartTime = null;
                 this.maxRetryDuration = 10 * 60 * 1000;
                 this.retryInterval = 5000;
                 this.retryTimeout = null;
+                this.tncConfigInterval = null;
                 this.connect();
             }
 
@@ -223,7 +227,7 @@
                 if (this.retryStartTime === null) {
                     this.retryStartTime = Date.now();
                 }
-                
+
                 const elapsedTime = Date.now() - this.retryStartTime;
                 if (elapsedTime < this.maxRetryDuration) {
                     this.scheduleRetry();
@@ -295,7 +299,7 @@
             scheduleRetry() {
                 uiState.setStatus('Connection lost. Retrying...', 'loading');
                 uiState.setShowLoader(true);
-                
+
                 this.retryTimeout = setTimeout(() => {
                     this.connect();
                 }, this.retryInterval);
@@ -306,6 +310,48 @@
                 if (this.retryTimeout) {
                     clearTimeout(this.retryTimeout);
                     this.retryTimeout = null;
+                }
+                if (this.tncConfigInterval) {
+                    clearInterval(this.tncConfigInterval);
+                    this.tncConfigInterval = null;
+                }
+            }
+
+            startTNCConfigPolling() {
+                const maxDuration = 5 * 60 * 1000; // 5 minutes
+                const pollInterval = 5000; // 5 seconds
+                const startTime = Date.now();
+                uiState.setStatus('Initializing TrueNAS Connect. This may take a moment.');
+
+                this.tncConfigInterval = setInterval(async () => {
+                    try {
+                        const tncConfig = await this.call('tnc_config');
+                        if (tncConfig.initialization_completed) {
+                            uiState.setStatus('TrueNAS Connect successfully initialized', 'success');
+                            setTimeout(() => {
+                                window.close()
+                            }, 3000)
+                            this.stopTNCConfigPolling();
+                            return;
+                        }
+
+                        // Check if 5 minutes have elapsed
+                        if (Date.now() - startTime >= maxDuration) {
+                            uiState.setStatus('TrueNAS Connect setup timeout', 'error');
+                            this.stopTNCConfigPolling();
+                        }
+                    } catch (error) {
+                        console.error('TNC config polling error:', error);
+                        uiState.setStatus('Error checking TrueNAS Connect status', 'error');
+                        this.stopTNCConfigPolling();
+                    }
+                }, pollInterval);
+            }
+
+            stopTNCConfigPolling() {
+                if (this.tncConfigInterval) {
+                    clearInterval(this.tncConfigInterval);
+                    this.tncConfigInterval = null;
                 }
             }
 
@@ -321,7 +367,7 @@
                 try {
                     const accessKey = await this.handleAuthentication();
                     const systemInfo = await this.call('system_info');
-                    
+
                     if (await this.handleSystemStatus(systemInfo)) {
                         return;
                     }
@@ -330,7 +376,7 @@
                 } catch (error) {
                     console.error(error);
                     uiState.setStatus(
-                        error?.message || 'Setup failed', 
+                        error?.message || 'Setup failed',
                         'error'
                     );
                 }
@@ -339,7 +385,7 @@
             async handleAuthentication() {
                 uiState.setStatus('Getting things ready...');
                 const isAdopted = await this.call('is_adopted');
-                
+
                 let accessKey;
                 if (!isAdopted) {
                     accessKey = await this.call('adopt');
@@ -370,18 +416,18 @@
 
             async handleTNCSetup(accessKey) {
                 const tncConfig = await this.call('tnc_config');
-                
+
                 if (tncConfig.initialization_error) {
                     throw new Error(tncConfig.initialization_error);
                 }
-                
+
                 if (Object.keys(tncConfig.registration_details).length) {
                     uiState.setStatus('Please continue the setup in TrueNAS Connect UI');
                     return;
                 }
 
                 this.validateConfig();
-                
+
                 if (!tncConfig.enabled) {
                     await this.call('configure_tnc', [{ ...this.config, enabled: true }]);
                 }
@@ -396,14 +442,14 @@
             validateConfig() {
                 const requiredFields = [
                     'account_service_base_url',
-                    'leca_service_base_url', 
+                    'leca_service_base_url',
                     'heartbeat_service_base_url',
                     'tnc_base_url'
                 ];
-                
-                const hasAllFields = this.config && 
+
+                const hasAllFields = this.config &&
                     requiredFields.every(field => this.config[field]);
-                    
+
                 if (!hasAllFields) {
                     throw new Error('Missing required configuration');
                 }
@@ -424,7 +470,7 @@
             displayIframe(url) {
                 const iframe = document.getElementById('truenas-connect-iframe');
                 const iframeCard = document.getElementById('iframe-card');
-
+                setShowLoader(false)
                 iframe.src = url;
                 iframeCard.style.display = 'block';
 
@@ -433,30 +479,32 @@
                     const targetOrigin = new URL(url).origin; // Extract origin from URL
                     iframe.contentWindow.postMessage({
                         type: 'auth',
-                        tncTokens: this.tokens
+                        message: this.token
                     }, targetOrigin);
                 };
-                
+
 
                 window.addEventListener('message', (event) => {
-    // ⚠️ Always verify the origin of the message!
-
-    const tncUrl = this.config.tnc_base_url || 'http://localhost:4200'
-    if (event.origin === tncUrl) {
-        console.log('event.origin', event.origin, this.config)
-      const receivedData = event.data;
-      if (receivedData.type === 'user-action') {
-
-      }
-    //   console.log('Received message from iframe:', receivedData);
-      
-      // Now you can handle the data in your website2 application
-      if (receivedData.type === 'user-action') {
-        console.log('payload message', receivedData.payload.message)
-        // alert(receivedData.payload.message);
-      }
-    }
-  });
+                    // ⚠️ Always verify the origin of the message!
+                    if (event.origin === this.config.tnc_base_url) {
+                        const ev = event.data;
+                        const iframeCard = document.getElementById('iframe-card');
+                        if (ev.type === 'system' && ev.message === 'registered') {
+                            if (iframeCard) {
+                                iframeCard.style.display = 'none';
+                            }
+                            setShowLoader(true)
+                            this.startTNCConfigPolling();
+                        }
+                        if (ev.type === 'auth' && ev.message === 'invalid token') {
+                            if (iframeCard) {
+                                iframeCard.style.display = 'none';
+                            }
+                            setShowLoader(true)
+                            uiState.setStatus('Registration to TrueNAS Connect failed due to invalid token', 'error');
+                        }
+                    }
+                });
             }
         }
 
@@ -485,8 +533,7 @@
             parseUrlConfig() {
                 const urlParams = new URLSearchParams(window.location.search);
                 const configParam = urlParams.get('config');
-                console.log('tokens', urlParams.get('tnc_tokens'))
-                
+
                 if (!configParam) {
                     throw new Error('No configuration provided');
                 }
@@ -494,14 +541,13 @@
                 return JSON.parse(decodeURIComponent(configParam));
             }
 
-            parseTokens() {
+            parseToken() {
                 const urlParams = new URLSearchParams(window.location.search);
-                const tokens = urlParams.get('tnc_tokens');
-                if (!tokens) {
+                const token = urlParams.get('tnc_token');
+                if (!token) {
                     throw new Error('No tokens provided');
                 }
-
-                return JSON.parse(decodeURIComponent(tokens));
+                return token;
             }
         }
 
