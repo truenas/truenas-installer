@@ -522,7 +522,7 @@
             initializeRPCClient() {
                 try {
                     const config = this.parseUrlConfig();
-                    const tokens = this.parseTokens()
+                    const tokens = this.parseToken()
                     new RPCClient('ws://truenas-installer.local:8080/ws', config, tokens);
                 } catch (error) {
                     console.error(error);
