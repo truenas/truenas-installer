@@ -329,8 +329,8 @@
                         if (tncConfig.initialization_completed) {
                             uiState.setStatus('TrueNAS Connect successfully initialized', 'success');
                             setTimeout(() => {
-                                window.close()
-                            }, 3000)
+                                window.close();
+                            }, 3000);
                             this.stopTNCConfigPolling();
                             return;
                         }
@@ -389,9 +389,18 @@
                 let accessKey;
                 if (!isAdopted) {
                     accessKey = await this.call('adopt');
-                    localStorage.setItem('accessKey', accessKey);
+                    try {
+                        localStorage.setItem('accessKey', accessKey);
+                    } catch (error) {
+                        console.warn('Could not save access key to localStorage:', error);
+                    }
                 } else {
-                    accessKey = localStorage.getItem('accessKey');
+                    try {
+                        accessKey = localStorage.getItem('accessKey');
+                    } catch (error) {
+                        console.warn('Could not read access key from localStorage:', error);
+                        accessKey = null;
+                    }
                 }
 
                 if (!accessKey) {
@@ -435,8 +444,8 @@
                 uiState.setStatus('Generating TrueNAS Connect registration URL');
                 const urlResult = await this.call('tnc_registration_uri');
                 uiState.setStatus('The TrueNAS Connect registration URL is ready');
-                const url = `${urlResult}&installer_token=${accessKey}`
-                this.displayIframe(url)
+                const url = `${urlResult}&installer_token=${accessKey}`;
+                this.displayIframe(url);
             }
 
             validateConfig() {
@@ -476,44 +485,54 @@
 
                 // Send JWT to iframe after it loads
                 iframe.onload = () => {
-                    const targetUrl = new URL(url)
-                    const targetOrigin = targetUrl.origin; // Extract origin from URL
-                    iframe.contentWindow.postMessage({
-                        type: 'allowed-path',
-                        message: targetUrl.pathname + targetUrl.search
-                    }, targetOrigin);
-                    
-                    iframe.contentWindow.postMessage({
-                        type: 'auth',
-                        message: this.token
-                    }, targetOrigin);
+                    try {
+                        const targetUrl = new URL(url);
+                        const targetOrigin = targetUrl.origin; // Extract origin from URL
+                        iframe.contentWindow.postMessage({
+                            type: 'allowed-path',
+                            message: targetUrl.pathname + targetUrl.search
+                        }, targetOrigin);
+                        
+                        iframe.contentWindow.postMessage({
+                            type: 'auth',
+                            message: this.token
+                        }, targetOrigin);
+                    } catch (error) {
+                        console.error('Error setting up iframe communication:', error);
+                        uiState.setStatus('Failed to initialize TrueNAS Connect interface', 'error');
+                    }
                 };
 
 
                 window.addEventListener('message', (event) => {
-                    // verify the origin of the message!
-                    if (event.origin === this.config.tnc_base_url) {
-                        const ev = event.data;
-                        const iframeCard = document.getElementById('iframe-card');
-                        let closeIframe = true
-                        if (ev.type === 'system' && ev.message === 'registered') {
-                            this.startTNCConfigPolling();
-                        }
-                        else if (ev.type === 'auth' && ev.message === 'invalid token') {
-                            uiState.setStatus('Registration to TrueNAS Connect failed due to invalid token', 'error');
-                        }
-                        else if (ev.type === 'url' && ev.message === 'invalid') {
-                            uiState.setStatus('Registration to TrueNAS Connect failed due to invalid url', 'error');
-                        } else {
-                            closeIframe = false
-                        }
+                    try {
+                        // verify the origin of the message!
+                        if (event.origin === this.config.tnc_base_url && event.data) {
+                            const ev = event.data;
+                            const iframeCard = document.getElementById('iframe-card');
+                            let closeIframe = true;
+                            
+                            if (ev.type === 'system' && ev.message === 'registered') {
+                                this.startTNCConfigPolling();
+                            }
+                            else if (ev.type === 'auth' && ev.message === 'invalid token') {
+                                uiState.setStatus('Registration to TrueNAS Connect failed due to invalid token', 'error');
+                            }
+                            else if (ev.type === 'url' && ev.message === 'invalid') {
+                                uiState.setStatus('Registration to TrueNAS Connect failed due to invalid url', 'error');
+                            } else {
+                                closeIframe = false;
+                            }
 
-                        if (closeIframe) {
-                            setShowLoader(true)
-                            if (iframeCard) {
-                                iframeCard.style.display = 'none';
+                            if (closeIframe) {
+                                setShowLoader(true);
+                                if (iframeCard) {
+                                    iframeCard.style.display = 'none';
+                                }
                             }
                         }
+                    } catch (error) {
+                        console.error('Error handling postMessage:', error);
                     }
                 });
             }
@@ -549,7 +568,11 @@
                     throw new Error('No configuration provided');
                 }
 
-                return JSON.parse(decodeURIComponent(configParam));
+                try {
+                    return JSON.parse(decodeURIComponent(configParam));
+                } catch (error) {
+                    throw new Error('Invalid configuration format');
+                }
             }
 
             parseToken() {
