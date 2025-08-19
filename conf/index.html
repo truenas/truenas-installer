@@ -476,7 +476,13 @@
 
                 // Send JWT to iframe after it loads
                 iframe.onload = () => {
-                    const targetOrigin = new URL(url).origin; // Extract origin from URL
+                    const targetUrl = new URL(url)
+                    const targetOrigin = targetUrl.origin; // Extract origin from URL
+                    iframe.contentWindow.postMessage({
+                        type: 'allowed-path',
+                        message: targetUrl.pathname + targetUrl.search
+                    }, targetOrigin);
+                    
                     iframe.contentWindow.postMessage({
                         type: 'auth',
                         message: this.token
@@ -485,23 +491,28 @@
 
 
                 window.addEventListener('message', (event) => {
-                    // ⚠️ Always verify the origin of the message!
+                    // verify the origin of the message!
                     if (event.origin === this.config.tnc_base_url) {
                         const ev = event.data;
                         const iframeCard = document.getElementById('iframe-card');
+                        let closeIframe = true
                         if (ev.type === 'system' && ev.message === 'registered') {
-                            if (iframeCard) {
-                                iframeCard.style.display = 'none';
-                            }
-                            setShowLoader(true)
                             this.startTNCConfigPolling();
                         }
-                        if (ev.type === 'auth' && ev.message === 'invalid token') {
+                        else if (ev.type === 'auth' && ev.message === 'invalid token') {
+                            uiState.setStatus('Registration to TrueNAS Connect failed due to invalid token', 'error');
+                        }
+                        else if (ev.type === 'url' && ev.message === 'invalid') {
+                            uiState.setStatus('Registration to TrueNAS Connect failed due to invalid url', 'error');
+                        } else {
+                            closeIframe = false
+                        }
+
+                        if (closeIframe) {
+                            setShowLoader(true)
                             if (iframeCard) {
                                 iframeCard.style.display = 'none';
                             }
-                            setShowLoader(true)
-                            uiState.setStatus('Registration to TrueNAS Connect failed due to invalid token', 'error');
                         }
                     }
                 });
@@ -522,8 +533,8 @@
             initializeRPCClient() {
                 try {
                     const config = this.parseUrlConfig();
-                    const tokens = this.parseToken()
-                    new RPCClient('ws://truenas-installer.local:8080/ws', config, tokens);
+                    const token = this.parseToken()
+                    new RPCClient('ws://truenas-installer.local:8080/ws', config, token);
                 } catch (error) {
                     console.error(error);
                     uiState.setStatus('Invalid URL', 'error');
