@@ -12,7 +12,7 @@ async def finalize_steps_after_registration() -> dict:
     await register_update_ips(tnc_config, tnc_config['ips'] + tnc_config['interfaces_ips'], True)
     cert_details = await create_cert(tnc_config)
     return update_tnc_config({
-        'csr_public_key': cert_details['csr'],
+        'csr_public_key': cert_details['csr'].decode(),
         'certificate_public_key': cert_details['cert'],
         'certificate_private_key': cert_details['private_key'],
         'initialization_completed': True,
