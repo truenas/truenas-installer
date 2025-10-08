@@ -44,17 +44,20 @@ async def get_partitions(
         try:
             with os.scandir(f"/sys/block/{device}") as dir_contents:
                 for partdir in filter(lambda x: x.is_dir() and x.name.startswith(device), dir_contents):
-                    with open(os.path.join(partdir.path, 'partition')) as f:
-                        try:
-                            _part = int(f.read().strip())
-                            if _part in partitions:
-                                # looks like {1: '/dev/sda1', 2: '/dev/nvme0n1p2'}
-                                disk_partitions[_part] = f'/dev/{partdir.name}'
-                        except (OSError, ValueError):
-                            # OSError: [Errno 19] No such device was seen on
-                            # our internal CI/CD infrastructure for reasons
-                            # not understood...
-                            continue
+                    try:
+                        with open(os.path.join(partdir.path, 'partition')) as f:
+                            try:
+                                _part = int(f.read().strip())
+                                if _part in partitions:
+                                    # looks like {1: '/dev/sda1', 2: '/dev/nvme0n1p2'}
+                                    disk_partitions[_part] = f'/dev/{partdir.name}'
+                            except (OSError, ValueError):
+                                # OSError: [Errno 19] No such device was seen on
+                                # our internal CI/CD infrastructure for reasons
+                                # not understood...
+                                continue
+                    except FileNotFoundError:
+                        continue
         except FileNotFoundError:
             continue
 
