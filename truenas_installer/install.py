@@ -122,7 +122,7 @@ async def create_boot_pool(devices):
 
 async def run_installer(disks, authentication, post_install, sql, callback):
     with tempfile.TemporaryDirectory() as src:
-        await run(["mount", "/cdrom/TrueNAS-SCALE.update", src, "-t", "squashfs", "-o", "loop"])
+        await run(["mount", "/cdrom/TrueNAS.update", src, "-t", "squashfs", "-o", "loop"])
         try:
             params = {
                 "authentication_method": authentication,
