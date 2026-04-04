@@ -7,7 +7,7 @@ from pyroute2 import IPRoute, NetlinkDumpInterrupted
 logger = logging.getLogger(__name__)
 
 
-__all__ = ["list_network_interfaces", "get_available_ip_addresses", "get_interface_ips"]
+__all__ = ["list_network_interfaces", "get_available_ip_addresses"]
 
 
 @dataclass
@@ -155,24 +155,3 @@ async def get_available_ip_addresses():
         dict: {"ipv4": [...], "ipv6": [...]}
     """
     return await _get_ip_addresses_with_filter(interface_filter=None)
-
-
-async def get_interface_ips(interface_names):
-    """
-    Get IP addresses from specific network interfaces.
-
-    Args:
-        interface_names: List of interface names (e.g., ["em0", "em1"])
-
-    Returns:
-        dict: {"ipv4": [...], "ipv6": [...]}
-    """
-    # First validate that all requested interfaces exist
-    available_interfaces = await list_network_interfaces()
-    available_names = [iface.name for iface in available_interfaces]
-
-    for name in interface_names:
-        if name not in available_names:
-            raise ValueError(f"Interface '{name}' not found")
-
-    return await _get_ip_addresses_with_filter(interface_filter=interface_names)
