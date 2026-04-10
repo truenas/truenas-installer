@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 from truenas_connect_utils.install_schema import TNC_CONFIG_SCHEMA
 from truenas_connect_utils.urls import get_registration_uri
 
-from truenas_installer.network_interfaces import get_available_ip_addresses, get_interface_ips
+from truenas_installer.network_interfaces import get_available_ip_addresses
 from truenas_installer.server.error import Error
 from truenas_installer.server.method import method
 
@@ -29,19 +29,6 @@ async def tnc_config(context):
 @method({
     'type': 'object',
     'properties': {
-        'ips': {
-            'type': 'array',
-            'items': {
-                'type': 'string',  # FIXME: Validate this to be proper IP Addresses
-            },
-        },
-        'interfaces': {
-            'type': 'array',
-            'items': {
-                'type': 'string',
-            },
-        },
-        'use_all_interfaces': {'type': 'boolean'},
         'enabled': {'type': 'boolean'},
         'account_service_base_url': {'type': 'string'},
         'leca_service_base_url': {'type': 'string'},
@@ -58,45 +45,9 @@ async def configure_tnc(context, data):
         raise Error('Configuration can only be updated once', errno.EINVAL)
 
     if data['enabled']:
-        # Validation: interfaces and use_all_interfaces are mutually exclusive
-        if data.get('interfaces') and data.get('use_all_interfaces', True):
-            raise Error(
-                'Cannot specify interfaces when use_all_interfaces is true',
-                errno.EINVAL
-            )
-
-        # Set default for use_all_interfaces if not provided
-        if 'use_all_interfaces' not in data:
-            data['use_all_interfaces'] = not bool(data.get('interfaces'))
-
-        # Handle interface-based IP resolution
-        if data.get('interfaces'):
-            # Specific interfaces mode
-            try:
-                interface_ips = await get_interface_ips(data['interfaces'])
-                data['interfaces_ips'] = interface_ips['ipv4'] + interface_ips['ipv6']
-            except ValueError as e:
-                # Value error is raised by the util function in case of invalid interface names
-                raise Error(str(e), errno.EINVAL)
-
-        elif data.get('use_all_interfaces'):
-            # All interfaces mode
-            detected_ips = await get_available_ip_addresses()
-            data['interfaces_ips'] = detected_ips['ipv4'] + detected_ips['ipv6']
-
-        else:
-            # use_all_interfaces explicitly False with no interfaces
-            data['interfaces_ips'] = []
-
-        # Validate we have at least one IP (from any source)
-        user_ips = data.get('ips', [])
-        interface_ips = data.get('interfaces_ips', [])
-
-        if not user_ips and not interface_ips:
-            raise Error(
-                'No IP addresses available. Provide IPs, interfaces, or enable use_all_interfaces',
-                errno.EINVAL
-            )
+        detected_ips = await get_available_ip_addresses()
+        if not detected_ips['ipv4'] and not detected_ips['ipv6']:
+            raise Error('No IP addresses available on the system', errno.EINVAL)
 
         context.server.configured_tnc = True
 
@@ -126,6 +77,7 @@ async def tnc_registration_uri(context):
         'model': context.server.installer.tn_model.removeprefix('TRUENAS-'),
         'system_id': config['system_id'],
         'token': config['claim_token'],
+        'port': 443,
     }
 
     return f'{get_registration_uri(config)}?{urlencode(query_params)}'
