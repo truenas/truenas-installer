@@ -5,6 +5,8 @@ import subprocess
 import tempfile
 from typing import Callable
 
+import truenas_pylicensed
+
 from .disks import Disk
 from .exception import InstallError
 from .lock import installation_lock
@@ -13,6 +15,48 @@ from .utils import get_partitions, run
 __all__ = ["InstallError", "install"]
 
 BOOT_POOL = "boot-pool"
+
+
+def _enforce_iso_lts_gate(src: str) -> None:
+    """ISO-side Layer A: verify manifest signature (when present) and
+    hard-refuse any LTS-marked image.
+
+    Fresh install cannot consult a license — there is no /data partition
+    yet. LTS updates are therefore only supported over the upgrade path on
+    an already-licensed system. Users get a precise error instead of a
+    silent bypass.
+    """
+    with open(os.path.join(src, "manifest.json")) as f:
+        manifest = json.load(f)
+
+    sig_path = os.path.join(src, "manifest.sig")
+    try:
+        with open(sig_path, "rb") as f:
+            sig_bytes = f.read()
+    except FileNotFoundError:
+        sig_bytes = None
+
+    is_lts = bool(manifest.get("lts"))
+
+    if sig_bytes is not None:
+        try:
+            truenas_pylicensed.verify_update_manifest(manifest, sig_bytes)
+        except truenas_pylicensed.SignatureError as e:
+            raise InstallError(f"Update image signature invalid: {e}")
+    elif is_lts:
+        # No signature, but the manifest claims LTS — can't trust the claim.
+        # Fail closed.
+        raise InstallError(
+            "This LTS update image is missing manifest.sig; refusing to install from ISO."
+        )
+
+    if is_lts:
+        raise InstallError(
+            "This is an LTS update image. Fresh install from ISO cannot verify the "
+            "LTS license feature. Install the unrestricted edition first, upload "
+            "your license via the UI or truenas.license.upload, then upgrade to "
+            "this image."
+        )
 
 
 async def install(destination_disks: list[Disk], wipe_disks: list[Disk], set_pmbr: bool, authentication: dict | None,
@@ -124,6 +168,8 @@ async def run_installer(disks, authentication, post_install, sql, callback):
     with tempfile.TemporaryDirectory() as src:
         await run(["mount", "/cdrom/TrueNAS.update", src, "-t", "squashfs", "-o", "loop"])
         try:
+            _enforce_iso_lts_gate(src)
+
             params = {
                 "authentication_method": authentication,
                 "disks": disks,
