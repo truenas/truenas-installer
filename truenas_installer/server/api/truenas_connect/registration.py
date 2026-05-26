@@ -3,6 +3,7 @@ import time
 
 import jwt
 from truenas_connect_utils.exceptions import CallError
+from truenas_connect_utils.finalize import FinalizeResult, classify_finalize_response
 from truenas_connect_utils.request import call
 from truenas_connect_utils.urls import get_registration_finalization_uri
 
@@ -21,59 +22,63 @@ async def poll_once(config: dict) -> dict:
 async def finalize_registration():
     config = get_tnc_config()
     while time.time() < config['claim_token_expiration']:
-        error = None
         status = await poll_once(config)
-        if status['error'] is None:
-            # We have got the key now and the registration has been finalized
-            if 'token' not in status['response']:
-                error = ('Registration finalization failed for TNC as token not '
-                         f'found in response: {status["response"]}'),
-            else:
-                token = status['response']['token']
-                decoded_token = {}
-                try:
-                    decoded_token = jwt.decode(token, options={'verify_signature': False})
-                except jwt.exceptions.DecodeError:
-                    error = 'Invalid JWT token received from TNC'
-                else:
-                    if diff := {'account_id', 'system_id'} - set(decoded_token):
-                        error = f'JWT token does not contain required fields: {diff!r}'
+        result, description = classify_finalize_response(status)
 
-            if error:
-                config.update({
-                    'initialization_completed': True,
-                    'initialization_in_progress': False,
-                    'initialization_error': error,
-                })
-                update_tnc_config(config)
-            else:
-                config.update({
-                    'jwt_token': token,
-                    'registration_details': decoded_token,
-                })
-                update_tnc_config(config)
-                try:
-                    await finalize_steps_after_registration()
-                except CallError as e:
-                    update_tnc_config({
-                        'initialization_completed': True,
-                        'initialization_in_progress': False,
-                        'initialization_error': f'Failed to generate certificate: {e}',
-                    })
-                else:
-                    try:
-                        await asyncio.to_thread(update_nginx_conf)
-                    except Exception as e:
-                        update_tnc_config({
-                            'initialization_completed': True,
-                            'initialization_in_progress': False,
-                            'initialization_error': f'Failed to update nginx config: {e}',
-                        })
+        if result is FinalizeResult.RETRY:
+            await asyncio.sleep(60)
+            continue
 
-            # We either got the cert created or we errored out above
+        if result is FinalizeResult.TERMINAL:
+            update_tnc_config({
+                'initialization_completed': True,
+                'initialization_in_progress': False,
+                'initialization_error': f'Registration failed: {description}',
+            })
             return
 
-        await asyncio.sleep(60)
+        # SUCCESS - decode token and run post-registration steps
+        error = None
+        token = status['response']['token']
+        decoded_token: dict = {}
+        try:
+            decoded_token = jwt.decode(token, options={'verify_signature': False})
+        except jwt.exceptions.DecodeError:
+            error = 'Invalid JWT token received from TNC'
+        else:
+            if diff := {'account_id', 'system_id'} - set(decoded_token):
+                error = f'JWT token does not contain required fields: {diff!r}'
+
+        if error:
+            update_tnc_config(config | {
+                'initialization_completed': True,
+                'initialization_in_progress': False,
+                'initialization_error': error,
+            })
+            return
+
+        update_tnc_config(config | {
+            'jwt_token': token,
+            'registration_details': decoded_token,
+        })
+        try:
+            await finalize_steps_after_registration()
+        except CallError as e:
+            update_tnc_config({
+                'initialization_completed': True,
+                'initialization_in_progress': False,
+                'initialization_error': f'Failed to generate certificate: {e}',
+            })
+        else:
+            try:
+                await asyncio.to_thread(update_nginx_conf)
+            except Exception as e:
+                update_tnc_config({
+                    'initialization_completed': True,
+                    'initialization_in_progress': False,
+                    'initialization_error': f'Failed to update nginx config: {e}',
+                })
+        return
     else:
         update_tnc_config(config | {
             'initialization_completed': True,
