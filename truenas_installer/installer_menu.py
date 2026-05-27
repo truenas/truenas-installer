@@ -10,6 +10,11 @@ from .serial import serial_sql
 
 _BINARY_SIZE_UNITS = ("KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB")
 
+_UNSUPPORTED_DTB_MESSAGE = (
+    "This system booted using a device tree (DTB). TrueNAS does not support DTB-based ARM boards; "
+    "proceeding with installation would likely result in a kernel panic."
+)
+
 
 def format_size_binary(num_bytes):
     if num_bytes == 0:
@@ -32,6 +37,8 @@ class InstallerMenu:
         self.installer = installer
 
     async def run(self):
+        if self.installer.dtb:
+            await dialog_msgbox("Unsupported Platform", _UNSUPPORTED_DTB_MESSAGE)
         await self._main_menu()
 
     async def _main_menu(self):
@@ -51,6 +58,10 @@ class InstallerMenu:
             await self._main_menu()
 
     async def _install_upgrade_internal(self):
+        if self.installer.dtb:
+            await dialog_msgbox("Unsupported Platform", _UNSUPPORTED_DTB_MESSAGE)
+            return False
+
         disks = await list_disks()
         vendor = self.installer.vendor
 
