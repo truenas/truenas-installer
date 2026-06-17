@@ -19,6 +19,7 @@ __all__ = ["system_info", "list_disks", "list_network_interfaces", "get_availabl
         "installation_error": {'oneOf': [{'type': 'null'}, {'type': 'string'}]},
         "version": {"type": "string"},
         "efi": {"type": "boolean"},
+        "dtb": {"type": "boolean"},
     },
 })
 async def system_info(context):
@@ -31,6 +32,7 @@ async def system_info(context):
         "installation_error": context.server.installation_error,
         "version": context.server.installer.version,
         "efi": context.server.installer.efi,
+        "dtb": context.server.installer.dtb,
     }
 
 
